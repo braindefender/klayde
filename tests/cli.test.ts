@@ -160,10 +160,16 @@ describe("registry", () => {
       expect(getGenerator(osId).os).toBe(osId);
     }
   });
-  test("заглушки возвращают skip", async () => {
-    const { createStubSpec } = await import("../process/model/spec.ts");
-    for (const osId of GENERATOR_RUN_ORDER) {
-      const res = await getGenerator(osId).generate(createStubSpec("f.toml"), "build");
+  test("windows реализован, macos/linux — заглушки skip (фаза 4)", async () => {
+    const { validateFile } = await import("../process/layouts/validate.ts");
+    const r = await validateFile("tests/fixtures/valid-mini.toml");
+    if (!r.spec) throw new Error("valid-mini обязан валидироваться");
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-reg-"));
+    const win = await getGenerator("windows").generate(r.spec, tmp);
+    expect(win.status).toBe("ok");
+    expect(win.outFile?.endsWith(".klc")).toBe(true);
+    for (const osId of ["macos", "linux"] as const) {
+      const res = await getGenerator(osId).generate(r.spec, tmp);
       expect(res.status).toBe("skip");
     }
   });

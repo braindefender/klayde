@@ -1,12 +1,13 @@
-/** Заглушка Windows-генератора (фаза 1). Реализация — фаза 4. */
+/** Windows-генератор .klc: ValidatedSpec → build/windows/<main.name>.klc. */
 import type { ValidatedSpec } from "../../model/spec.ts";
 import type { GenerateResult, OsGenerator } from "../types.ts";
+import { writeKlcFile } from "./klcWriter.ts";
 
 export class WindowsKlcGenerator implements OsGenerator {
   readonly os = "windows" as const;
 
-  async generate(spec: ValidatedSpec, _outDir: string): Promise<GenerateResult> {
-    void spec;
-    return { status: "skip", reason: "генератор windows ещё не реализован (фаза 4)" };
+  async generate(spec: ValidatedSpec, outDir: string): Promise<GenerateResult> {
+    const outFile = await writeKlcFile(spec, outDir);
+    return { status: "ok", outFile };
   }
 }

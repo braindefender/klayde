@@ -29,29 +29,3 @@ export interface ValidatedSpec {
   capsIsShift: boolean;
   usedLigatures: Map<string, number[]>;
 }
-
-/**
- * Заглушка фазы 1: настоящего валидатора (V0–V9, фаза 2) ещё нет,
- * поэтому оркестратор помечает каждый обнаруженный файл как
- * «условно валидный» с пустыми слоями. Генераторы-заглушки фазы 1
- * всё равно отвечают `skip: not implemented` и не трогают слои,
- * так что пустые матрицы безопасны. Удалить при реализации фазы 2.
- */
-export function createStubSpec(file: string): ValidatedSpec {
-  const empty = (): CellValue[][] => [];
-  return {
-    file,
-    main: { name: file, shortName: "" },
-    msklc: { name: "", company: "", copyright: "", description: "" },
-    layers: {
-      base: empty(),
-      baseShift: empty(),
-      altgr: empty(),
-      altgrShift: empty(),
-      caps: null,
-      capsShift: null,
-    },
-    capsIsShift: true,
-    usedLigatures: new Map(),
-  };
-}
