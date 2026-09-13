@@ -1,11 +1,12 @@
 /**
  * Оркестрация фаз A→B→C (docs/08, раздел 3; контракт docs/01, раздел 3).
  *
- * Фаза 1: реализованы фазы A (parseArgs + discoverInputs) и каркас C
- * (реестр генераторов-заглушек). Валидация V0–V9 (фаза B, фаза 2 плана)
- * отсутствует: все обнаруженные файлы считаются условно валидными
- * (createStubSpec). Частичная генерация запрещена — в фазе 1 это
- * тривиально выполнено, т.к. заглушки ничего не пишут.
+ * Фаза A: parseArgs + discoverInputs (ошибки — выход 2).
+ * Фаза B: validateFile() V0–V8 по каждому файлу + crossCheck() V9;
+ * вся диагностика печатается сразу, при хотя бы одной ошибке генерация
+ * не запускается ни для одного файла — выход 1 (fail-closed).
+ * Фаза C: генераторы по парам (spec, os); в фазе 2 это заглушки
+ * (skip: not implemented, выход 0).
  *
  * Обычные сообщения и сводка — stdout; ошибки — stderr (docs/01, раздел 5).
  * Возвращает код выхода, process.exit выполняет bootstrap (index.ts).
@@ -16,9 +17,11 @@ import {
   parseArgs,
   printUsage,
 } from "./cli/args.ts";
-import { CliError, EXIT_ARGS, EXIT_INTERNAL, EXIT_OK, formatCliError } from "./cli/errors.ts";
-import { createStubSpec } from "./model/spec.ts";
+import { CliError, EXIT_ARGS, EXIT_INTERNAL, EXIT_OK, EXIT_VALIDATION, formatCliError } from "./cli/errors.ts";
 import { discoverInputs } from "./layouts/discover.ts";
+import { validateFile } from "./layouts/validate.ts";
+import { crossCheck } from "./layouts/crosscheck.ts";
+import { hasErrors, printDiagnostics, type Diagnostic } from "./layouts/report.ts";
 import { GENERATOR_RUN_ORDER, getGenerator } from "./generators/registry.ts";
 
 export async function runCli(argv: string[]): Promise<number> {
@@ -49,9 +52,37 @@ export async function runCli(argv: string[]): Promise<number> {
     );
   }
 
-  // Фаза B (TODO, план фаза 2): validateFile() V0–V8 + crossCheck() V9.
-  // Пока — заглушка: все входы условно валидны.
-  const specs = inputFiles.map((file) => createStubSpec(file));
+  // Фаза B: валидация V0–V8 по каждому файлу, затем V9 кросс-проверка.
+  // Ошибки собираются по всем файлам и печатаются все сразу (docs/01).
+  const results = [];
+  for (const file of inputFiles) {
+    const res = await validateFile(file);
+    results.push(res);
+    if (opts.verbose) {
+      console.log(
+        `verbose: validate ${file} — ошибок ${res.errors.length}, предупреждений ${res.warnings.length}`,
+      );
+    }
+  }
+  const diagnostics: Diagnostic[] = results.flatMap((r) => [...r.errors, ...r.warnings]);
+  const validSpecs = results.flatMap((r) => (r.spec !== null ? [r.spec] : []));
+  diagnostics.push(
+    ...crossCheck(
+      validSpecs.map((spec) => ({
+        file: spec.file,
+        mainName: spec.main.name,
+        mainShortName: spec.main.shortName,
+        msklcName: spec.msklc.name,
+      })),
+    ),
+  );
+  if (diagnostics.length > 0) {
+    printDiagnostics(diagnostics);
+  }
+  if (hasErrors(diagnostics)) {
+    return EXIT_VALIDATION;
+  }
+  const specs = validSpecs;
 
   // Фаза C: для каждой пары (spec, os) в фиксированном порядке ОС.
   const requested = GENERATOR_RUN_ORDER.filter((os) => opts.osList.includes(os));
