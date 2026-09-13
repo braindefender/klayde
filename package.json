@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "start": "bun run index.ts",
     "windows": "bun run index.ts -- --os=windows",
     "macos": "bun run index.ts -- --os=macos",
     "linux": "bun run index.ts -- --os=linux",
