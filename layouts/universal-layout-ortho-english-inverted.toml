@@ -1,0 +1,46 @@
+[main]
+name = "Universal Layout Ortho English Inverted"
+short_name = "ULOENI"
+
+[msklc]
+name = "ULOENI"
+company = "braindefender"
+copyright = "©2026 braindefender"
+description = "Universal Layout Ortho English Inverted"
+
+[ligatures]
+FatArr = "=>"
+ThinArr = "->"
+
+[layout]
+base = '''
+!        @        #        $        %        ^        ?        *        (        )
+q        w        e        r        t        y        u        i        o        p
+a        s        d        f        g        h        j        k        l        ~
+z        x        c        v        b        n        m        &        [        ]
+@Space   '        -        =        ,        .        /        @None    /        .
+'''
+
+base_shift = '''
+1        2        3        4        5        6        7        8        9        0
+Q        W        E        R        T        Y        U        I        O        P
+A        S        D        F        G        H        J        K        L        ≈
+Z        X        C        V        B        N        M        &        {        }
+@Space   "        _        +        ;        :        |        @None    |        ,
+'''
+
+altgr = '''
+¹        ²        ³        ⁴        ‰        ˆ        ¿        ∞        ‘        ’
+ψ        ω        €        ®        ё        ¥        λ        щ        <        >
+α        §        °        £        γ        ₽        ø        @FatArr  «        »
+μ        ×        ©        √        β        η        ъ        &        [        ]
+@Nbsp    `        –        ≠        ,        .        \        @None    \        .
+'''
+
+altgr_shift = '''
+¡        ½        ⅓        ¼        @None    @None    ⁈        @None    “        ”
+Ψ        Ω        @None    @None    Ё        @None    Λ        Щ        ≤        ≥
+Α        Σ        Δ        @None    Γ        @None    Ø        @ThinArr ←        →
+Μ        @None    ¢        @None    Β        Η        Ъ        …        {        }
+@Nbsp    •        —        ±        ;        :        ¦        @None    ¦        ,
+'''
