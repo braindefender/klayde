@@ -1,4 +1,6 @@
-# klayde
+# KLayDE
+
+Keyboard Layout Definition Emitter
 
 To install dependencies:
 
