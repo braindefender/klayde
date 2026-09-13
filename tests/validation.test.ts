@@ -9,6 +9,8 @@
  */
 import { describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { crossCheck } from "../process/layouts/crosscheck.ts";
 import { validateFile, validateText, checkScalarValue } from "../process/layouts/validate.ts";
 import type { ValidationCode } from "../process/layouts/report.ts";
@@ -225,13 +227,16 @@ describe("runCli с валидацией", () => {
   });
 
   test("валидная схема → выход 0", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-valid-"));
     const code = await runCli([
       "bun",
       "index.ts",
       "--",
       "--layout=tests/fixtures/valid-mini.toml",
       "--os=windows",
+      `--out=${tmp}`,
     ]);
     expect(code).toBe(0);
+    expect(await fs.readdir(path.join(tmp, "windows"))).toEqual(["Fixture Valid Mini.klc"]);
   });
 });
