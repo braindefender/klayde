@@ -1,0 +1,161 @@
+# Архитектура приложения и план внедрения
+
+## 1. Структура каталогов (предлагаемая)
+
+```text
+klayde/
+  index.ts            # существующая точка входа (bootstrap → src/main.ts)
+  package.json        # скрипт "start": "bun run index.ts" (уже добавлен)
+  layouts/            # входные TOML-схемы (существуют, 6 файлов)
+  data/
+    unicode.json      # код -> UPPER_ENGLISH_NAME (см. docs/07)
+  process/
+    main.ts           # runCli(argv): оркестрация фаз A→B→C
+    cli/
+      args.ts         # парсинг --os/--layout/--out/--verbose + usage
+      errors.ts       # коды E_* / exit codes
+    model/
+      spec.ts         # типы LayoutSpec, CellValue, ValidatedSpec
+    layouts/
+      discover.ts     # резолв входов в список файлов
+      rawcheck.ts     # V0: поиск """ по сырому тексту
+      parse.ts        # V1–V2: TOML-парсинг + структура
+      validate.ts     # V3–V8: валидаторы одного файла
+      crosscheck.ts   # V9: дубли между файлами
+      report.ts       # формат error[E_...]/warn[W_...], печать в stderr
+    generators/
+      types.ts        # интерфейс OsGenerator { os, generate(spec, outDir) }
+      registry.ts     # карта os -> генератор; unknown → not implemented
+      windows/
+        positions.ts  # таблица ortho-5x10-v1 (docs/05)
+        unicode.ts    # загрузка data/unicode.json + encodeCell()
+        klcHeader.ts  # шапка + SHIFTSTATE + KEYNAME* + DESCRIPTIONS/LANGUAGENAMES
+        klcLayout.ts  # секции LAYOUT + LIGATURE
+        klcWriter.ts  # сборка, CRLF, UTF-16LE+BOM, атомарная запись
+        index.ts      # WindowsKlcGenerator implements OsGenerator
+      macos/
+        index.ts      # заглушка: skip not implemented
+      linux/
+        index.ts      # заглушка: skip not implemented
+  build/              # выход (gitignore): build/windows/*.klc
+  docs/               # эта документация
+  tests/
+    fixtures/         # валидные + по одному на каждый E_*-код
+    golden/           # эталонные .klc из universal-layout для сравнения
+    *.test.ts         # тесты валидаторов, позиционной таблицы, golden-дифф
+```
+
+## 2. Ключевые типы (эскиз)
+
+```ts
+type OsId = "windows" | "macos" | "linux";
+
+interface CliOptions {
+  osList: OsId[]; inputFiles: string[];
+  outDir: string; failFast: boolean; verbose: boolean;
+}
+
+type CellValue =
+  | { kind: "none" } | { kind: "space" } | { kind: "nbsp" }
+  | { kind: "char"; codePoint: number }
+  | { kind: "ligature"; name: string; codePoints: number[] };
+
+interface ValidatedSpec {
+  file: string;
+  main: { name: string; shortName: string };
+  msklc: { name: string; company: string; copyright: string; description: string };
+  layers: { base: CellValue[][]; baseShift: CellValue[][];
+            altgr: CellValue[][]; altgrShift: CellValue[][];
+            caps: CellValue[][] | null; capsShift: CellValue[][] | null };
+  capsIsShift: boolean;
+  usedLigatures: Map<string, number[]>;
+}
+
+interface OsGenerator {
+  readonly os: OsId;
+  generate(spec: ValidatedSpec, outDir: string): Promise<GenerateResult>;
+}
+```
+
+Матрицы — всегда 5×10 после валидации. Генератор не проверяет размеры.
+
+## 3. Поток данных
+
+Описывается словами. `main()` вызывает `parseArgs()` → `discoverInputs()` →
+для каждого файла `validateFile()` (стадии V0–V8 из `docs/03`) →
+`crossCheck()` (V9) → если ошибок нет, для каждой пары
+`(spec, os)` вызывает `registry.get(os).generate()` → пишет файлы →
+печатает сводку. Ошибки валидации печатаются все сразу; генерация либо
+для всех файлов, либо ни для одного. Частичная генерация запрещена.
+
+Зависимости текут в одну сторону: `generators/windows/*` зависит от
+`model` и `layouts/*` (читает `ValidatedSpec`), но не наоборот. `cli`
+не знает про KLC. Таблица позиций и таблица Unicode — чистые данные
+без логики, подменяемые в тестах.
+
+## 4. Решения, принятые в этом плане (сводка)
+
+1. Вход — только TOML; сетки — только `'''`; геометрия — только 5×10.
+2. `Cap` — по позиции (ряды 2–4 `SGCap`, ряды 1/5 `Cap=0`), не по символу.
+3. Нет `caps` — значит `caps=shift` (swap `shift`/`base` в расширениях).
+4. Лигатуры — только `@Имя` + `%%`/`LIGATURE`; встроенные `@None/@Space/@Nbsp`.
+5. `Ctrl`-колонка и `SPACE.col7=-1` — константы таблицы позиций.
+6. Выход Windows — UTF-16LE+BOM+CRLF, имя `<main.name>.klc` в `<out>/windows/`.
+7. macOS/Linux — заглушки за тем же интерфейсом; `--os` принимает их уже сейчас.
+8. Кодировка вне BMP и лигатуры в `caps` — честные ошибки генерации,
+   а не молчаливые искажения.
+9. Открытые вопросы с дефолтами: `LOCALEID/LOCALENAME` (`00000409/en-US`),
+   `LANGUAGENAMES` (= `DESCRIPTIONS` до решения), точная граница
+   `short_name` (8). Каждый помечен кодом и тестом как известный риск.
+
+## 5. План внедрения (по фазам, без кода)
+
+**Фаза 1 — каркас.** `src/main.ts`, парсинг аргументов, discovery входов,
+реестр генераторов с Windows-заглушкой, коды выхода, тесты CLI-парсинга.
+Критерий готовности: `bun run start -- --os=windows` печатает usage-ошибки
+корректно, несуществующий layout даёт `E_LAYOUT_NOT_FOUND`.
+
+**Фаза 2 — валидация.** V0–V9 по `docs/03`, фикстуры на каждый код ошибки,
+тест «все 6 файлов из `layouts/` валидны без ошибок». Критерий: сломанные
+копии фикстур дают ровно ожидаемые коды с координатами.
+
+**Фаза 3 — данные Windows.** Таблица позиций (`positions.ts`) с юнит-тестом
+«50 записей», таблица Unicode (`unicode.json` минимум для всех
+символов из `layouts/` + `*` для `00ab/00bb`), тест `encodeCell`.
+
+**Фаза 4 — генератор KLC.** `klcHeader/klcLayout/klcWriter`, golden-тесты:
+сгенерированные `.klc` для merged/english/russian диффаются с эталонами
+из `universal-layout` (допуски: только `LANGUAGENAMES`, если решение
+ещё не принято). Проверка открытия результата в MSKLC вручную —
+единственный ручной шаг; всё остальное автоматизировано. Критерий:
+MSKLC открывает файлы без ошибок, golden-дифф в пределах допусков.
+
+**Фаза 5 — лигатуры и caps.** Параметризованные тесты: схемы без `caps`
+дают swap-расширения; `@FatArr/@ThinArr` дают `%%` + `K 3/4`; неиспользуемая
+лигатура — `W_LIG_UNUSED` и отсутствие в выводе;
+
+**Фаза 6 — полировка.** `--out`, `--verbose`, атомарная запись,
+сводка, README с примерами запуска. Регресс: полный прогон
+`bun run start` даёт `dist/windows/*.klc` для всех 6 схем.
+
+## 6. Тестовая стратегия
+
+- Юнит-тесты валидаторов: по одному минимальному TOML на каждый `E_*`.
+- Юнит-тесты таблицы позиций: каждая из 49 записей сверена с эталоном
+  (sc, vk, cap-зона, ctrl).
+- Golden-тесты: побайтовое сравнение (после нормализации CRLF) с тремя
+  эталонами; расхождения вне допусков — падение.
+- Ручной acceptance: открыть каждый `.klc` в MSKLC, убедиться в отсутствии
+  ошибок, визуально сверить `caps=shift` (для english/russian) и лигатуры.
+
+## 7. Риски и mitigations
+
+- Недокументированность KLC: mitigated — три эталона + системные KLC
+  покрывают все используемые конструкции; неизвестное проявляется как
+  ошибка MSKLC на acceptance и фиксируется точечно.
+- `SPACE.col7` и `LANGUAGENAMES`: mitigated — дефолты + тесты фиксируют
+  отличие от эталона как известное, решение принимается отдельно без
+  переделки архитектуры.
+- Расширение на standard-раскладки: mitigated — таблица позиций
+  версионирована (`ortho-5x10-v1`); новая геометрия = новая таблица,
+  валидатор и генератор не меняются.
