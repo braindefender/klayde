@@ -3,14 +3,17 @@
  *
  * Порядок секций и дословные шаблоны — из docs/04. Весь текст собирается
  * с `\n`, затем join в `\r\n`; кодирование UTF-16LE с BOM (`FF FE`).
- * Имя файла: `<main.name>.klc` в `<out>/windows/`. Запись атомарная
- * (временный файл рядом + rename), чтобы прерванный прогон не оставлял
- * половинчатый `.klc` (docs/06, раздел 6).
+ * Имя файла: `<main.name>.klc` в `<out>/<rel>/<os>/`, где `<rel>` —
+ * относительный путь схемы внутри `layouts/` (напр.
+ * `layouts/universal-layout/ortho/x.toml` → `<out>/universal-layout/ortho/windows/`).
+ * Запись атомарная (временный файл рядом + rename), чтобы прерванный
+ * прогон не оставлял половинчатый `.klc` (docs/06, раздел 6).
  */
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { ValidatedSpec } from "../../model/spec.ts";
+import { resolveOsOutDir } from "../paths.ts";
 import {
   KEYNAME_EXT_LINES,
   KEYNAME_LINES,
@@ -79,7 +82,7 @@ export async function writeKlcFile(
   outDir: string,
   table: UnicodeTable = DEFAULT_UNICODE_TABLE,
 ): Promise<string> {
-  const dir = path.join(outDir, "windows");
+  const dir = resolveOsOutDir(outDir, "windows", spec.file);
   await fs.mkdir(dir, { recursive: true });
   const outFile = path.join(dir, `${spec.main.name}.klc`);
   const tmpFile = `${outFile}.tmp.${process.pid}`;

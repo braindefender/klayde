@@ -3,10 +3,12 @@
  *
  * Правила:
  * 1. Флаг отсутствует — все `*.toml` в каталоге `layouts/`
- *    (только верхний уровень, без рекурсии, сортировка по имени).
+ *    (рекурсивно, включая вложенные подкаталоги, сортировка по имени).
  * 2. Каталог `layouts/` пуст/отсутствует — E_NO_INPUTS.
  * 3. Несуществующий файл — E_LAYOUT_NOT_FOUND.
- * 4. Путь-каталог — все `*.toml` внутри (верхний уровень, сортировка).
+ * 4. Путь-каталог — все `*.toml` внутри (рекурсивно, сортировка).
+ *    Относительная структура подкаталогов сохраняется генераторами:
+ *    `layouts/a/b/x.toml` → `<out>/a/b/<os>/...`.
  * 5. Несколько --layout — один список, дубликаты убираются.
  * 6. Расширение строго `.toml` (регистр не важен). Другие файлы
  *    игнорируются при сканировании каталога, но явный не-TOML —
@@ -33,10 +35,38 @@ async function scanTomlDir(dir: string): Promise<string[]> {
       `нет входов: каталог "${dir}" отсутствует или недоступен; укажите --layout=<путь к .toml>`,
     );
   }
-  return entries
-    .filter((e) => e.isFile() && isTomlFile(e.name))
-    .map((e) => path.join(dir, e.name))
-    .sort();
+  const collected: string[] = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      try {
+        collected.push(...(await scanTomlDir(full)));
+      } catch {
+        // Нечитаемый подкаталог — пропускаем, решение по E_NO_INPUTS
+        // принимается по итогу всего сканирования.
+      }
+    } else if (entry.isFile()) {
+      if (isTomlFile(entry.name)) collected.push(full);
+    } else if (entry.isSymbolicLink()) {
+      // Симлинк: резолвим тип цели (файл/каталог), битые — пропускаем.
+      let stat;
+      try {
+        stat = await fs.stat(full);
+      } catch {
+        continue;
+      }
+      if (stat.isDirectory()) {
+        try {
+          collected.push(...(await scanTomlDir(full)));
+        } catch {
+          // см. выше: нечитаемый подкаталог — пропуск.
+        }
+      } else if (stat.isFile() && isTomlFile(entry.name)) {
+        collected.push(full);
+      }
+    }
+  }
+  return collected.sort();
 }
 
 export async function discoverInputs(

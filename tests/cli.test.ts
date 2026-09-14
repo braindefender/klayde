@@ -119,13 +119,19 @@ describe("discoverInputs", () => {
     }
   });
 
-  test("каталог: только верхний уровень, *.toml, сортировка, игнор прочих", async () => {
+  test("каталог: рекурсивно, *.toml, сортировка, игнор прочих", async () => {
     // Имена строчные и различные: Windows-ФС case-insensitive,
     // поэтому a.toml + A.TOML были бы одним файлом.
     const dir = await makeTmp({ "b.toml": "x", "a.toml": "x", "note.txt": "x", "c.TOML": "x" });
+    await fs.mkdir(path.join(dir, "sub", "nested"), { recursive: true });
+    await fs.writeFile(path.join(dir, "sub", "d.toml"), "x");
+    await fs.writeFile(path.join(dir, "sub", "nested", "e.toml"), "x");
+    await fs.writeFile(path.join(dir, "sub", "ignore.txt"), "x");
     const found = await discoverInputs([dir]);
     expect(found).toEqual(
-      ["a.toml", "b.toml", "c.TOML"].map((n) => path.join(dir, n)),
+      ["a.toml", "b.toml", "c.TOML", path.join("sub", "d.toml"), path.join("sub", "nested", "e.toml")].map(
+        (n) => path.join(dir, n),
+      ),
     );
   });
 
@@ -146,10 +152,12 @@ describe("discoverInputs", () => {
     }
   });
 
-  test("дефолт layouts/: все 6 схем отсортированы", async () => {
+  test("дефолт layouts/: рекурсивно все схемы отсортированы", async () => {
     const found = await discoverInputs([]);
-    expect(found.length).toBe(6);
+    expect(found.length).toBe(12);
     expect(found).toEqual([...found].sort());
+    expect(found.some((f) => f.includes(path.join("universal-layout", "ortho")))).toBe(true);
+    expect(found.some((f) => f.includes(path.join("universal-layout", "standard")))).toBe(true);
   });
 });
 
