@@ -13,7 +13,11 @@
  *   в комментариях основных строк), `20bd` → `<null>` (таблица MSKLC
  *   старше ₽); особый случай DECIMAL (c2/c6/c7 все `-1`) — пустые имена;
  * - расширение SGCap: `-1\\t-1\\t0\\tcaps\\tcapsShift\\t\\t// <n1>, <n2>`;
- *   лигатура в caps — G_CAPS_LIGATURE (docs/06, раздел 3);
+ *   лигатура в SGCap-расширении — G_CAPS_LIGATURE (docs/06, раздел 3);
+ * - Cap-оптимизация для явных caps (включая @Trans): прозрачный
+ *   (caps==base) → Cap 0 без расширения, swap (caps==shift) → Cap 1
+ *   без расширения (нативный caps=shift MSKLC); глобальный capsIsShift
+ *   без caps-слоёв — legacy SGCap+swap как в эталонах;
  * - строка LIGATURE: `VK\\t\\tMod#\\tкоды\\t\\t// <имена через " + ">`;
  *   Mod#: s0→0, s1→1, s6→3, s7→4 (индекс в SHIFTSTATE, docs/04, раздел 3).
  */
@@ -75,6 +79,8 @@ function vkPad(vk: string): string {
  * значений колонок в 6 эталонах, нарушений 0): одиночный ASCII
  * `[A-Za-z0-9]` пишется литералом (`q`, `1`), всё остальное — 4-hex.
  * Комментарии при этом всегда идут по именам (см. mainCellName).
+ * `trans` сюда попадать не должен (валидатор резолвит до spec);
+ * встреча — G_INTERNAL (defense in depth).
  */
 function layoutValueText(value: CellValue, table: UnicodeTable): string {
   switch (value.kind) {
@@ -84,6 +90,11 @@ function layoutValueText(value: CellValue, table: UnicodeTable): string {
       return "0020";
     case "nbsp":
       return "00a0";
+    case "trans":
+      throw new KlcBuildError(
+        "G_INTERNAL",
+        `@Trans достиг генератора без резолва — валидатор обязан раскрыть его в копию base/base_shift`,
+      );
     case "ligature":
       return "%%";
     case "char": {
@@ -91,6 +102,31 @@ function layoutValueText(value: CellValue, table: UnicodeTable): string {
       const ch = String.fromCodePoint(value.codePoint);
       if (/^[A-Za-z0-9]$/.test(ch)) return ch;
       return hexOf(value.codePoint);
+    }
+  }
+}
+
+/**
+ * Равенство ячеек по содержимому (для вывода Cap 0/1).
+ * Лигатуры сравниваются по кодам раскрытия (имена в .klc не попадают);
+ * `trans` — никогда не равен (до сюда он не доходит, см. guard в
+ * buildLayoutBlock).
+ */
+function cellsEqual(a: CellValue, b: CellValue): boolean {
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case "none":
+    case "space":
+    case "nbsp":
+      return true;
+    case "trans":
+      return false;
+    case "char":
+      return a.codePoint === (b as { codePoint: number }).codePoint;
+    case "ligature": {
+      const bc = b as { codePoints: number[] };
+      if (a.codePoints.length !== bc.codePoints.length) return false;
+      return a.codePoints.every((cp, i) => cp === bc.codePoints[i]);
     }
   }
 }
@@ -112,6 +148,14 @@ export function buildLayoutBlock(
     const s1 = at(spec.layers.baseShift, pos.col);
     const s6 = at(spec.layers.altgr, pos.col);
     const s7 = at(spec.layers.altgrShift, pos.col);
+    for (const v of [s0, s1, s6, s7]) {
+      if (v.kind === "trans") {
+        throw new KlcBuildError(
+          "G_INTERNAL",
+          `sc ${sc}: @Trans вне caps-слоёв — валидатор обязан отклонить (E_CELL_AT) или резолвить`,
+        );
+      }
+    }
 
     if (sc === "39" && s7.kind === "ligature") {
       throw new KlcBuildError(
@@ -127,21 +171,67 @@ export function buildLayoutBlock(
     // SC 39 (SPACE): c7 всегда -1, независимо от сетки.
     const t7 = sc === "39" ? "-1" : layoutValueText(s7, table);
 
-    // Пара caps для SG-клавиш: capsIsShift → swap (shift, base).
+    // Cap-колонка и пара caps для SG-клавиш.
+    // - capsIsShift (глобально, без caps-слоёв): legacy swap (shift, base)
+    //   с SGCap-расширением (побайтово как в 6 эталонах; golden-совместимость).
+    //   Исключение — лигатура в s0/s1 на SGCap-клавише: swap-расширение
+    //   содержало бы %% без Mod# (G_CAPS_LIGATURE), поэтому вместо этого
+    //   Cap 1/0 без расширения (нативный caps=shift MSKLC, как J-лигатура
+    //   с галочкой caps=shift в caps_shift_test.klc); лигатуры
+    //   переиспользуют Mod# 0/1 из base.
+    // - явные caps/caps_shift (включая @Trans, уже резолвленный в
+    //   caps←base, caps_shift←base_shift): оптимизация без расширения —
+    //   прозрачный (caps==base) → Cap 0, swap (caps==shift) → Cap 1,
+    //   иначе SGCap с расширением. Cap 0/1 повторяют нативный MSKLC
+    //   (см. caps_shift_test.klc: H с Cap 1).
+    //   Лигатура в caps допустима только при Cap 0/1 (переиспользует
+    //   Mod# 0/1 из base); при SGCap — G_CAPS_LIGATURE, т.к. MSKLC не
+    //   предоставляет Mod# для caps-расширений.
+    let cap = pos.cap === "SGCap" ? "SGCap" : "0";
     let capsPair: [CellValue, CellValue] | null = null;
     if (pos.cap === "SGCap") {
-      capsPair = spec.capsIsShift
-        ? [s1, s0]
-        : [
-            at(spec.layers.caps as CellValue[][], pos.col),
-            at(spec.layers.capsShift as CellValue[][], pos.col),
-          ];
-      for (const v of capsPair) {
-        if (v.kind === "ligature") {
-          throw new KlcBuildError(
-            "G_CAPS_LIGATURE",
-            `sc ${sc}: лигатура @${v.name} в caps-слое — MSKLC не предоставляет Mod# для caps-расширений`,
-          );
+      if (spec.capsIsShift) {
+        if (s0.kind === "ligature" || s1.kind === "ligature") {
+          // Swap без расширения: CapsLock как Shift, лигатуры из base.
+          if (cellsEqual(s0, s1)) {
+            cap = "0";
+          } else {
+            cap = "1";
+          }
+          capsPair = null;
+        } else {
+          capsPair = [s1, s0];
+        }
+      } else {
+        const c0 = at(spec.layers.caps as CellValue[][], pos.col);
+        const c1 = at(spec.layers.capsShift as CellValue[][], pos.col);
+        for (const v of [c0, c1]) {
+          if (v.kind === "trans") {
+            throw new KlcBuildError(
+              "G_INTERNAL",
+              `sc ${sc}: @Trans в caps достиг генератора без резолва`,
+            );
+          }
+        }
+        if (cellsEqual(c0, s0) && cellsEqual(c1, s1)) {
+          cap = "0";
+          capsPair = null;
+        } else if (!cellsEqual(s0, s1) && cellsEqual(c0, s1) && cellsEqual(c1, s0)) {
+          cap = "1";
+          capsPair = null;
+        } else {
+          cap = "SGCap";
+          capsPair = [c0, c1];
+        }
+      }
+      if (capsPair !== null) {
+        for (const v of capsPair) {
+          if (v.kind === "ligature") {
+            throw new KlcBuildError(
+              "G_CAPS_LIGATURE",
+              `sc ${sc}: лигатура @${v.name} в caps-слое — MSKLC не предоставляет Mod# для caps-расширений`,
+            );
+          }
         }
       }
     }
@@ -149,11 +239,11 @@ export function buildLayoutBlock(
       ? [layoutValueText(capsPair[0], table), layoutValueText(capsPair[1], table)]
       : ["-1", "-1"];
 
-    // Полностью пустая клавиша (все -1, включая caps) — пропустить,
-    // как SC 28 во всех эталонах.
+    // Полностью пустая клавиша — пропустить, как SC 28 в эталонах:
+    // все -1 в base, а caps либо отсутствует (Cap 0/1), либо тоже -1.
     if (
       t0 === "-1" && t1 === "-1" && t6 === "-1" && t7 === "-1" &&
-      capsTexts[0] === "-1" && capsTexts[1] === "-1"
+      (capsPair === null || (capsTexts[0] === "-1" && capsTexts[1] === "-1"))
     ) {
       continue;
     }
@@ -176,7 +266,6 @@ export function buildLayoutBlock(
       });
     }
 
-    const cap = pos.cap === "SGCap" ? "SGCap" : "0";
     dataRows.push(
       `${sc}\t${pos.vk}${vkPad(pos.vk)}${cap}\t${t0}\t${t1}\t${t2}\t${t6}\t${t7}\t\t// ${mainRowComment(table, [s0, s1], t2, [s6, s7], t7)}`,
     );
@@ -235,6 +324,9 @@ function mainCellName(table: UnicodeTable, value: CellValue): string {
   if (value.kind === "none") return "<none>";
   if (value.kind === "space") return "SPACE";
   if (value.kind === "nbsp") return "NO-BREAK SPACE";
+  if (value.kind === "trans") {
+    throw new KlcBuildError("G_INTERNAL", `@Trans в base/altgr достиг генератора без резолва`);
+  }
   const override = MAIN_ROW_NAME_OVERRIDES[hexOf(value.codePoint)];
   if (override === null) return "<null>";
   if (override !== undefined) return override;
@@ -256,5 +348,8 @@ function capsCellName(table: UnicodeTable, value: CellValue): string {
   if (value.kind === "space") return "SPACE";
   if (value.kind === "nbsp") return "NO-BREAK SPACE";
   if (value.kind === "ligature") return "<null>";
+  if (value.kind === "trans") {
+    throw new KlcBuildError("G_INTERNAL", `@Trans в caps достиг генератора без резолва`);
+  }
   return commentFor(table, value.codePoint);
 }

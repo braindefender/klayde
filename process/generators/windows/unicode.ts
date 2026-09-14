@@ -16,6 +16,8 @@
  *   G_UNICODE_ASTRAL, чтобы не писать неверные суррогаты молча;
  * - встроенные токены обрабатываются раньше таблицы: @None → `-1`/`<none>`,
  *   @Space → `0020`/`SPACE`, @Nbsp → `00a0`/`NO-BREAK SPACE`.
+ *   @Trans до генератора не доходит (валидатор резолвит в копию
+ *   base/base_shift); встреча в encodeCell — внутренняя ошибка.
  */
 
 import type { CellValue } from "../../model/spec.ts";
@@ -87,6 +89,10 @@ export function encodeCell(
       return { text: "0020", comment: "SPACE" };
     case "nbsp":
       return { text: "00a0", comment: "NO-BREAK SPACE" };
+    case "trans":
+      throw new Error(
+        "G_INTERNAL: @Trans достиг encodeCell без резолва — валидатор обязан раскрыть его в копию base/base_shift",
+      );
     case "char": {
       if (value.codePoint > 0xffff) throw new AstralCodeError(value.codePoint);
       return { text: hexOf(value.codePoint), comment: commentFor(table, value.codePoint) };

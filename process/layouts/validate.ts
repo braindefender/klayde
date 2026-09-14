@@ -8,11 +8,14 @@
  *     всё содержимое к паре кодов E_LIG_LENGTH/E_LIG_CONTROL).
  * V5: геометрия сеток — 5 строк по 10 ячеек; таб — E_GRID_TAB;
  *     внутренняя пустая строка — E_GRID_EMPTY_CELL.
- * V6: содержимое ячеек — @None/@Space/@Nbsp строго по регистру,
+ * V6: содержимое ячеек — @None/@Space/@Nbsp/@Trans строго по регистру,
  *     `@Имя` с резолвом (неизвестное — E_CELL_UNKNOWN_REF с подсказкой
  *     при расстоянии Левенштейна ≤ 2), одиночный `@` — at-sign U+0040
  *     (docs/02, раздел 6.3), иначе E_CELL_AT; многосимвольная ячейка
  *     без `@` — E_CELL_LENGTH; управляющий символ — E_CELL_CONTROL.
+ *     `@Trans` разрешён только в caps/caps_shift (иначе E_CELL_AT)
+ *     и резолвится в копию base/base_shift (caps←base,
+ *     caps_shift←base_shift) до V8/spec.
  * V7: caps/caps_shift — либо оба, либо ни одного (E_CAPS_HALF);
  *     отсутствие — флаг capsIsShift.
  * V8: маппируемость в Unicode — суррогаты/не-scalar — E_UNICODE
@@ -57,10 +60,10 @@ const GRID_ROWS = 5;
 const GRID_COLS = 10;
 
 const LIG_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
-const RESERVED_LIG = new Set(["none", "space", "nbsp"]);
+const RESERVED_LIG = new Set(["none", "space", "nbsp", "trans"]);
 const SHORT_ID_RE = /^[A-Za-z0-9]+$/;
 const CONTROL_RE = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
-const BUILTIN_TOKENS = ["None", "Space", "Nbsp"] as const;
+const BUILTIN_TOKENS = ["None", "Space", "Nbsp", "Trans"] as const;
 
 /** Прочитать файл и провалидировать (V0–V8). Ошибка чтения — E_IO. */
 export async function validateFile(file: string): Promise<FileValidation> {
@@ -128,6 +131,11 @@ export function validateText(file: string, text: string): FileValidation {
     if (raw === undefined) continue; // отсутствие уже сообщено в V2
     matrices.set(layer, validateLayer(structured, layer, raw, ligMap, usedLigatures, file, errors));
   }
+
+  // V6b: резолв @Trans (caps←base, caps_shift←base_shift).
+  // Выполняется до V7/V8, чтобы скалярные проверки и spec видели
+  // уже раскрытые копии (включая лигатуры из base).
+  resolveTransCells(matrices, file, errors);
 
   // V7: когерентность caps.
   const hasCaps = structured.layoutKeys.has("caps");
@@ -278,7 +286,7 @@ function validateLigatures(
         errorDiag(
           "E_LIG_RESERVED",
           file,
-          `[ligatures].${name}: имя зарезервировано (встроены @None/@Space/@Nbsp)`,
+          `[ligatures].${name}: имя зарезервировано (встроены @None/@Space/@Nbsp/@Trans)`,
         ),
       );
       continue;
@@ -383,8 +391,21 @@ function validateLayer(
       const cell = (cells[c] as string).trim();
       const parsed = parseCell(cell, ligMap);
       if (parsed.error === undefined) {
+        const value = parsed.value as CellValue;
+        // @Trans — только в caps/caps_shift, иначе E_CELL_AT.
+        if (value.kind === "trans" && layer !== "caps" && layer !== "caps_shift") {
+          errors.push(
+            errorDiag(
+              "E_CELL_AT",
+              file,
+              `[layout].${layer} строка ${r + 1}, колонка ${c + 1}: "@Trans" разрешён только в слоях caps/caps_shift (наследование из base/base_shift)`,
+            ),
+          );
+          row.push({ kind: "none" });
+          continue;
+        }
         if (parsed.usedLig !== undefined) usedLigatures.add(parsed.usedLig);
-        row.push(parsed.value as CellValue);
+        row.push(value);
         continue;
       }
       errors.push(cellError(layer, r + 1, c + 1, cell, parsed, ligNames, file));
@@ -394,6 +415,76 @@ function validateLayer(
   }
   if (matrix.some((row) => row === null)) return null;
   return matrix as CellValue[][];
+}
+
+/**
+ * Резолв @Trans: caps[r][c] ← клон base[r][c],
+ * caps_shift[r][c] ← клон base_shift[r][c].
+ * Вызывается до V8/spec; после резолва trans в матрицах не остаётся.
+ * Если base-слой фатально сломан (null) — пропустить (ошибки уже есть,
+ * spec всё равно будет null).
+ */
+function resolveTransCells(
+  matrices: Map<LayerName, CellValue[][] | null>,
+  file: string,
+  errors: Diagnostic[],
+): void {
+  const pairs: [LayerName, LayerName][] = [
+    ["caps", "base"],
+    ["caps_shift", "base_shift"],
+  ];
+  for (const [dst, src] of pairs) {
+    const dstM = matrices.get(dst);
+    if (dstM === undefined || dstM === null) continue;
+    const srcM = matrices.get(src);
+    if (srcM === undefined || srcM === null) continue;
+    for (let r = 0; r < dstM.length; r++) {
+      const dstRow = dstM[r] as CellValue[];
+      const srcRow = srcM[r] as CellValue[] | undefined;
+      if (srcRow === undefined) {
+        errors.push(
+          errorDiag("E_GRID_GEOMETRY", file, `[layout].${dst}: строка ${r + 1} без пары в [layout].${src} для резолва @Trans`),
+        );
+        continue;
+      }
+      for (let c = 0; c < dstRow.length; c++) {
+        if ((dstRow[c] as CellValue).kind !== "trans") continue;
+        const srcCell = srcRow[c] as CellValue | undefined;
+        if (srcCell === undefined) {
+          errors.push(
+            errorDiag("E_GRID_GEOMETRY", file, `[layout].${dst} строка ${r + 1}, колонка ${c + 1}: нет ячейки [layout].${src} для @Trans`),
+          );
+          dstRow[c] = { kind: "none" };
+          continue;
+        }
+        if (srcCell.kind === "trans") {
+          // В base/base_shift trans невозможен (отклонён в V6),
+          // defense in depth на случай ручной сборки матриц.
+          errors.push(
+            errorDiag("E_CELL_AT", file, `[layout].${dst} строка ${r + 1}, колонка ${c + 1}: @Trans в [layout].${src} недопустим`),
+          );
+          dstRow[c] = { kind: "none" };
+          continue;
+        }
+        dstRow[c] = cloneCell(srcCell);
+      }
+    }
+  }
+}
+
+/** Глубокая копия ячейки (для резолва @Trans; у лигатур свой массив кодов). */
+function cloneCell(cell: CellValue): CellValue {
+  switch (cell.kind) {
+    case "none":
+    case "space":
+    case "nbsp":
+    case "trans":
+      return { kind: cell.kind };
+    case "char":
+      return { kind: "char", codePoint: cell.codePoint };
+    case "ligature":
+      return { kind: "ligature", name: cell.name, codePoints: [...cell.codePoints] };
+  }
 }
 
 /** Нормализовать CRLF, отбросить ведущую/конечную пустые строки. */
@@ -408,12 +499,16 @@ type CellParse =
   | { value: CellValue; usedLig?: string; error?: undefined }
   | { value?: undefined; usedLig?: undefined; error: "unknown-ref" | "length" | "control" | "at" };
 
-/** Разобрать одну ячейку (чистая функция; координаты добавляет вызывающий). */
+/** Разобрать одну ячейку (чистая функция; координаты добавляет вызывающий).
+ * `@Trans` возвращается как есть; допустимость слоя (только caps/caps_shift)
+ * и резолв в копию base/base_shift — в validateLayer/resolveTransCells.
+ */
 export function parseCell(raw: string, ligMap: Map<string, number[]>): CellParse {
   const cell = raw.trim();
   if (cell === "@None") return { value: { kind: "none" } };
   if (cell === "@Space") return { value: { kind: "space" } };
   if (cell === "@Nbsp") return { value: { kind: "nbsp" } };
+  if (cell === "@Trans") return { value: { kind: "trans" } };
   if (cell === "@") return { value: { kind: "char", codePoint: 0x40 } };
   if (cell.startsWith("@")) {
     if (/^@[A-Za-z][A-Za-z0-9_]*$/.test(cell)) {
@@ -468,7 +563,7 @@ function cellError(
       return errorDiag(
         "E_CELL_AT",
         file,
-        `${where}: "${cell}" начинается с @, но не является ссылкой (@Имя) или встроенным токеном (@None/@Space/@Nbsp)`,
+        `${where}: "${cell}" начинается с @, но не является ссылкой (@Имя) или встроенным токеном (@None/@Space/@Nbsp/@Trans)`,
       );
   }
 }

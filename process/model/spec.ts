@@ -11,13 +11,19 @@ export type CellValue =
   | { kind: "none" }
   | { kind: "space" }
   | { kind: "nbsp" }
+  | { kind: "trans" }
   | { kind: "char"; codePoint: number }
   | { kind: "ligature"; name: string; codePoints: number[] };
 
 export interface ValidatedSpec {
   file: string;
   main: { name: string; shortName: string };
-  msklc: { name: string; company: string; copyright: string; description: string };
+  msklc: {
+    name: string;
+    company: string;
+    copyright: string;
+    description: string;
+  };
   layers: {
     base: CellValue[][];
     baseShift: CellValue[][];
