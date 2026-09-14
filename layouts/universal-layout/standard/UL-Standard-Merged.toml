@@ -1,0 +1,62 @@
+[main]
+name = "Universal Layout Standard Merged"
+short_name = "ULSM"
+
+[msklc]
+name = "ULSM"
+company = "braindefender"
+copyright = "©2026 braindefender"
+description = "Universal Layout Standard Merged"
+
+[ligatures]
+FatArr = "=>"
+ThinArr = "->"
+
+[layout]
+base = '''
+1        2        3        4        5        6        7        8        9        0
+q        w        e        r        t        y        u        i        o        p
+a        s        d        f        g        h        j        k        l        @FatArr
+z        x        c        v        b        n        m        ,        .        &
+@Space   '        -        =        [        ]        /        ~        /        .
+'''
+
+base_shift = '''
+!        @        #        $        %        ^        ?        *        (        )
+Q        W        E        R        T        Y        U        I        O        P
+A        S        D        F        G        H        J        K        L        @ThinArr
+Z        X        C        V        B        N        M        ;        :        &
+@Space   "        _        +        {        }        |        ≈        |        ,
+'''
+
+altgr = '''
+¹        ²        ³        ⁴        ‰        ˆ        ¿        ∞        ‘        ’
+ψ        ω        €        ®        ё        ¥        λ        @None    @None    π
+α        §        °        £        γ        ₽        ø        @FatArr  «        »
+μ        ×        ©        √        β        η        ъ        <        >        &
+@Nbsp    `        –        ≠        [        ]        \        ~        \        .
+'''
+
+altgr_shift = '''
+¡        ½        ⅓        ¼        @None    @None    ⁈        @None    “        ”
+Ψ        Ω        €        ®        Ё        ¥        Λ        @None    @None    Π
+Α        Σ        Δ        £        Γ        ₽        Ø        @ThinArr ←        →
+Μ        @None    ¢        @None    Β        Η        Ъ        ≤        ≥        …
+@Nbsp    •        —        ±        {        }        ¦        ≈        ¦        ,
+'''
+
+caps = '''
+1        2        3        4        5        6        7        8        9        0
+й        ц        у        к        е        н        г        ш        щ        з
+ф        ы        в        а        п        р        о        л        д        ж
+я        ч        с        м        и        т        ь        ,        .        ю
+@Space   '        -        =        х        б        /        э        /        .
+'''
+
+caps_shift = '''
+!        @        #        $        %        ^        ?        *        (        )
+Й        Ц        У        К        Е        Н        Г        Ш        Щ        З
+Ф        Ы        В        А        П        Р        О        Л        Д        Ж
+Я        Ч        С        М        И        Т        Ь        ;        :        Ю
+@Space   "        _        +        Х        Б        |        Э        |        ,
+'''
