@@ -15,6 +15,15 @@
  */
 
 import { errorDiag, type Diagnostic } from "./report.ts";
+import {
+  LAYOUT_KEYS,
+  LAYOUT_KEY_SET,
+  MAIN_KEYS,
+  MSKLC_KEYS,
+  OPTIONAL_SECTIONS,
+  REQUIRED_SECTIONS,
+} from "./const.ts";
+import { describeType, isRecord } from "./helpers.ts";
 
 /** Ошибка синтаксиса TOML с сообщением парсера. */
 export class TomlSyntaxError extends Error {
@@ -37,25 +46,6 @@ export function parseTomlDocument(text: string): unknown {
     const detail = err instanceof Error ? err.message : String(err);
     throw new TomlSyntaxError(`TOML-парсинг: ${detail}`);
   }
-}
-
-const REQUIRED_SECTIONS = ["main", "msklc", "layout"] as const;
-const OPTIONAL_SECTIONS = ["ligatures"] as const;
-
-const MAIN_KEYS = new Set(["name", "short_name"]);
-const MSKLC_KEYS = new Set(["name", "company", "copyright", "description"]);
-const LAYOUT_KEYS = new Set([
-  "base",
-  "base_shift",
-  "altgr",
-  "altgr_shift",
-  "caps",
-  "caps_shift",
-]);
-const REQUIRED_LAYOUT_KEYS = ["base", "base_shift", "altgr", "altgr_shift", "caps", "caps_shift"] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export interface StructuredDoc {
@@ -162,7 +152,7 @@ export function checkStructure(doc: unknown, file: string): {
     structured.hasSection["layout"] = true;
     for (const key of Object.keys(layoutRaw)) {
       structured.layoutKeys.add(key);
-      if (!LAYOUT_KEYS.has(key)) {
+      if (!LAYOUT_KEY_SET.has(key)) {
         diagnostics.push(
           errorDiag("E_SCHEMA_UNKNOWN_KEY", file, `[layout].${key}: неизвестный ключ слоя`),
         );
@@ -181,7 +171,7 @@ export function checkStructure(doc: unknown, file: string): {
         structured.layout[key] = value;
       }
     }
-    for (const layer of REQUIRED_LAYOUT_KEYS) {
+    for (const layer of LAYOUT_KEYS) {
       if (!(layer in layoutRaw)) {
         diagnostics.push(
           errorDiag(
@@ -251,11 +241,4 @@ function checkStringSection(
       );
     }
   }
-}
-
-function describeType(value: unknown): string {
-  if (Array.isArray(value)) return "массив";
-  if (value === null) return "null";
-  if (typeof value === "object") return "таблица";
-  return typeof value;
 }

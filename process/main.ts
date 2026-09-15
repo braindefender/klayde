@@ -22,7 +22,7 @@ import {
 } from "./cli/errors.ts";
 import { discoverInputs } from "./cli/discover.ts";
 import { validateFile } from "./validation/validate.ts";
-import { crossCheck } from "./validation/crosscheck.ts";
+import { crossCheck } from "./validation/check-name-intersections.ts";
 import {
   hasErrors,
   printDiagnostics,

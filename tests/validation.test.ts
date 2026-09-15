@@ -15,8 +15,9 @@ import { describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { crossCheck } from "../process/validation/crosscheck.ts";
-import { validateFile, validateText, checkScalarValue } from "../process/validation/validate.ts";
+import { crossCheck } from "../process/validation/check-name-intersections.ts";
+import { validateFile, validateText } from "../process/validation/validate.ts";
+import { checkScalarValue } from "../process/validation/helpers.ts";
 import type { ValidationCode } from "../process/validation/report.ts";
 import { runCli } from "../process/main.ts";
 
@@ -26,11 +27,15 @@ async function validateFixture(name: string) {
   return validateText(file, text);
 }
 
-function errorCodes(result: { errors: { code: ValidationCode }[] }): ValidationCode[] {
+function errorCodes(result: {
+  errors: { code: ValidationCode }[];
+}): ValidationCode[] {
   return result.errors.map((e) => e.code).sort();
 }
 
-function warnCodes(result: { warnings: { code: ValidationCode }[] }): ValidationCode[] {
+function warnCodes(result: {
+  warnings: { code: ValidationCode }[];
+}): ValidationCode[] {
   return result.warnings.map((w) => w.code).sort();
 }
 
@@ -75,8 +80,14 @@ describe("@Trans: резолв в base/base_shift", () => {
     const spec = r.spec;
     expect(spec).not.toBeNull();
     // r2c2 caps=@Trans → копия base 'l'; caps_shift=@Trans → копия base_shift 'l'.
-    expect(spec?.layers.caps?.[1]?.[1]).toEqual({ kind: "char", codePoint: 0x6c });
-    expect(spec?.layers.capsShift?.[1]?.[1]).toEqual({ kind: "char", codePoint: 0x6c });
+    expect(spec?.layers.caps?.[1]?.[1]).toEqual({
+      kind: "char",
+      codePoint: 0x6c,
+    });
+    expect(spec?.layers.capsShift?.[1]?.[1]).toEqual({
+      kind: "char",
+      codePoint: 0x6c,
+    });
     // r2c10 caps=@Trans поверх лигатуры base → копия раскрытия FatArr.
     expect(spec?.layers.caps?.[1]?.[9]).toEqual({
       kind: "ligature",
@@ -84,7 +95,9 @@ describe("@Trans: резолв в base/base_shift", () => {
       codePoints: [0x3d, 0x3e],
     });
     // Копия глубокая: мутация caps не трогает base.
-    (spec?.layers.caps?.[1]?.[9] as { codePoints: number[] }).codePoints.push(0x21);
+    (spec?.layers.caps?.[1]?.[9] as { codePoints: number[] }).codePoints.push(
+      0x21,
+    );
     expect(spec?.layers.base[1]?.[9]).toEqual({
       kind: "ligature",
       name: "FatArr",
@@ -120,7 +133,10 @@ describe("valid-mini: структура spec", () => {
     expect(r5[2]).toEqual({ kind: "nbsp" });
     expect(r5[3]?.kind).toBe("ligature");
     // Одиночный @ — at-sign U+0040 (docs/02, 6.3).
-    expect(spec?.layers.base[3]?.[7]).toEqual({ kind: "char", codePoint: 0x40 });
+    expect(spec?.layers.base[3]?.[7]).toEqual({
+      kind: "char",
+      codePoint: 0x40,
+    });
   });
 });
 
@@ -152,7 +168,10 @@ describe("фикстуры: ровно ожидаемые коды", () => {
     // отдельный код E_CAPS_HALF упразднён: caps/caps_shift обязательны.
     ["e_caps_half.toml", ["E_SCHEMA_UNKNOWN_KEY"]],
     // Открывающий и закрывающий """ — по ошибке на строку (docs/03, V0).
-    ["e_quotes_triple_double.toml", ["E_QUOTES_TRIPLE_DOUBLE", "E_QUOTES_TRIPLE_DOUBLE"]],
+    [
+      "e_quotes_triple_double.toml",
+      ["E_QUOTES_TRIPLE_DOUBLE", "E_QUOTES_TRIPLE_DOUBLE"],
+    ],
   ];
   for (const [fixture, want] of cases) {
     test(`${fixture} → ${want.join("+")}`, async () => {
@@ -206,7 +225,10 @@ describe("предупреждения", () => {
       { file: "a.toml", mainName: "N", mainShortName: "S", msklcName: "A" },
       { file: "b.toml", mainName: "N", mainShortName: "S", msklcName: "B" },
     ]);
-    expect(diags.map((d) => d.code).sort()).toEqual(["W_DUP_NAME", "W_DUP_SHORT"]);
+    expect(diags.map((d) => d.code).sort()).toEqual([
+      "W_DUP_NAME",
+      "W_DUP_SHORT",
+    ]);
     expect(diags.every((d) => d.severity === "warning")).toBe(true);
   });
 });
@@ -220,12 +242,14 @@ describe("V9 через файлы: E_MSKLC_DUP_NAME", () => {
     const diags = crossCheck(
       [a, b].flatMap((r) =>
         r.spec
-          ? [{
-              file: r.file,
-              mainName: r.spec.main.name,
-              mainShortName: r.spec.main.shortName,
-              msklcName: r.spec.msklc.name,
-            }]
+          ? [
+              {
+                file: r.file,
+                mainName: r.spec.main.name,
+                mainShortName: r.spec.main.shortName,
+                msklcName: r.spec.msklc.name,
+              },
+            ]
           : [],
       ),
     );
@@ -275,6 +299,8 @@ describe("runCli с валидацией", () => {
       `--out=${tmp}`,
     ]);
     expect(code).toBe(0);
-    expect(await fs.readdir(path.join(tmp, "windows"))).toEqual(["Fixture Valid Mini.klc"]);
+    expect(await fs.readdir(path.join(tmp, "windows"))).toEqual([
+      "Fixture Valid Mini.klc",
+    ]);
   });
 });

@@ -13,11 +13,15 @@ klayde/
     main.ts           # runCli(argv): оркестрация фаз A→B→C
     cli/
       args.ts         # парсинг --os/--layout/--out/--verbose + usage
+      const.ts        # дефолты, KNOWN_FLAGS
+      helpers.ts      # splitFlag/readFlagValue/parseBooleanValue/isTomlFile
       errors.ts       # коды E_* / exit codes
       discover.ts     # резолв входов в список файлов
     model/
       spec.ts         # типы LayoutSpec, CellValue, ValidatedSpec
     validation/
+      const.ts        # слои, геометрия, шаблоны, лимиты, таблицы секций
+      helpers.ts      # чистые утилиты: ячейки, сетки, Левенштейн, Unicode
       rawcheck.ts     # V0: поиск """ по сырому тексту
       parse.ts        # V1–V2: TOML-парсинг + структура
       validate.ts     # V3–V8: валидаторы одного файла

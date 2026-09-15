@@ -34,14 +34,39 @@
 
 import { promises as fs } from "node:fs";
 import type { CellValue, ValidatedSpec } from "../model/spec.ts";
-import { findTripleDoubleQuotes } from "./rawcheck.ts";
-import { checkStructure, isEmptyDocument, parseTomlDocument, TomlSyntaxError } from "./parse.ts";
+import { findTripleDoubleQuotes } from "./check-literal-strings.ts";
 import {
-  errorDiag,
-  warnDiag,
-  type Diagnostic,
-  type ValidationErrorCode,
-} from "./report.ts";
+  checkStructure,
+  isEmptyDocument,
+  parseTomlDocument,
+  TomlSyntaxError,
+} from "./parse.ts";
+import {
+  BUILTIN_TOKENS,
+  GRID_COLS,
+  GRID_ROWS,
+  LAYOUT_KEYS,
+  LIG_MAX_CODES,
+  LIG_MIN_CODES,
+  LIG_NAME_RE,
+  MAIN_NAME_MAX_LENGTH,
+  MAIN_NAME_MIN_LENGTH,
+  MSKLC_TEXT_FIELDS,
+  RESERVED_LIG,
+  TRANS_PAIRS,
+  type LayerName,
+} from "./const.ts";
+import {
+  checkScalarValue,
+  cloneCell,
+  isLengthIn,
+  isShortId,
+  parseCell,
+  splitGrid,
+  suggestLigature,
+  type CellParse,
+} from "./helpers.ts";
+import { errorDiag, warnDiag, type Diagnostic } from "./report.ts";
 
 export interface FileValidation {
   file: string;
@@ -50,25 +75,6 @@ export interface FileValidation {
   /** null, если есть хотя бы одна ошибка. */
   spec: ValidatedSpec | null;
 }
-
-const LAYER_ORDER = [
-  "base",
-  "base_shift",
-  "altgr",
-  "altgr_shift",
-  "caps",
-  "caps_shift",
-] as const;
-type LayerName = (typeof LAYER_ORDER)[number];
-
-const GRID_ROWS = 5;
-const GRID_COLS = 10;
-
-const LIG_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
-const RESERVED_LIG = new Set(["none", "space", "nbsp", "trans"]);
-const SHORT_ID_RE = /^[A-Za-z0-9]+$/;
-const CONTROL_RE = /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u;
-const BUILTIN_TOKENS = ["None", "Space", "Nbsp", "Trans"] as const;
 
 /** Прочитать файл и провалидировать (V0–V8). Ошибка чтения — E_IO. */
 export async function validateFile(file: string): Promise<FileValidation> {
@@ -98,14 +104,20 @@ export function validateText(file: string, text: string): FileValidation {
       errorDiag(
         "E_QUOTES_TRIPLE_DOUBLE",
         file,
-        `строка ${hit.line}, колонка ${hit.col}: найдены тройные двойные кавычки ("""); все сетки и лигатуры со слэшем должны использовать '''...'''`,
+        `строка ${hit.line}, колонка ${hit.column}: найдены тройные двойные кавычки ("""); все сетки и лигатуры со слэшем должны использовать '''...'''`,
       ),
     );
   }
 
   // V1: парсинг.
   if (isEmptyDocument(text)) {
-    errors.push(errorDiag("E_TOML_EMPTY", file, `файл пуст: ожидался TOML-документ схемы`));
+    errors.push(
+      errorDiag(
+        "E_TOML_EMPTY",
+        file,
+        `файл пуст: ожидался TOML-документ схемы`,
+      ),
+    );
     return { file, errors, warnings, spec: null };
   }
   let doc: unknown;
@@ -131,10 +143,21 @@ export function validateText(file: string, text: string): FileValidation {
   // V5–V6: слои → матрицы токенов (null-строки/целые слои при фатальном).
   const usedLigatures = new Set<string>();
   const matrices = new Map<LayerName, CellValue[][] | null>();
-  for (const layer of LAYER_ORDER) {
+  for (const layer of LAYOUT_KEYS) {
     const raw = structured.layout[layer];
     if (raw === undefined) continue; // отсутствие уже сообщено в V2
-    matrices.set(layer, validateLayer(structured, layer, raw, ligMap, usedLigatures, file, errors));
+    matrices.set(
+      layer,
+      validateLayer(
+        structured,
+        layer,
+        raw,
+        ligMap,
+        usedLigatures,
+        file,
+        errors,
+      ),
+    );
   }
 
   // V6b: резолв @Trans (caps←base, caps_shift←base_shift).
@@ -169,7 +192,10 @@ export function validateText(file: string, text: string): FileValidation {
     (matrices.get(layer) ?? []) as CellValue[][];
   const spec: ValidatedSpec = {
     file,
-    main: { name: structured.main["name"] as string, shortName: structured.main["short_name"] as string },
+    main: {
+      name: structured.main["name"] as string,
+      shortName: structured.main["short_name"] as string,
+    },
     msklc: {
       name: structured.msklc["name"] as string,
       company: structured.msklc["company"] as string,
@@ -200,7 +226,10 @@ function validateScalars(
   const out: Diagnostic[] = [];
   const { main, msklc } = structured;
 
-  if (main["name"] !== undefined && !isLengthIn(main["name"].trim(), 1, 64)) {
+  if (
+    main["name"] !== undefined &&
+    !isLengthIn(main["name"].trim(), MAIN_NAME_MIN_LENGTH, MAIN_NAME_MAX_LENGTH)
+  ) {
     out.push(
       errorDiag(
         "E_MAIN_NAME",
@@ -227,12 +256,7 @@ function validateScalars(
       ),
     );
   }
-  const msklcTextFields = [
-    ["company", "E_MSKLC_COMPANY"],
-    ["copyright", "E_MSKLC_COPYRIGHT"],
-    ["description", "E_MSKLC_DESCRIPTION"],
-  ] as const;
-  for (const [key, code] of msklcTextFields) {
+  for (const [key, code] of MSKLC_TEXT_FIELDS) {
     if (msklc[key] !== undefined && msklc[key].trim() === "") {
       out.push(
         errorDiag(code, file, `[msklc].${key}: ожидалась непустая строка`),
@@ -240,15 +264,6 @@ function validateScalars(
     }
   }
   return out;
-}
-
-function isLengthIn(value: string, min: number, max: number): boolean {
-  const len = Array.from(value).length;
-  return len >= min && len <= max;
-}
-
-function isShortId(value: string): boolean {
-  return value.length >= 1 && value.length <= 8 && SHORT_ID_RE.test(value);
 }
 
 // --- V4 ---
@@ -282,25 +297,31 @@ function validateLigatures(
       continue;
     }
     if (/[\n\r\t]/.test(value) || value.startsWith("@")) {
-      const why = value.startsWith("@") && !/[\n\r\t]/.test(value)
-        ? "значение начинается с @ (резерв ссылок)"
-        : "значение содержит перевод строки или таб";
+      const why =
+        value.startsWith("@") && !/[\n\r\t]/.test(value)
+          ? "значение начинается с @ (резерв ссылок)"
+          : "значение содержит перевод строки или таб";
       errors.push(
         errorDiag("E_LIG_CONTROL", file, `[ligatures].${name}: ${why}`),
       );
       continue;
     }
-    const codePoints = Array.from(value).map((ch) => ch.codePointAt(0) as number);
-    if (codePoints.length < 2 || codePoints.length > 4) {
+    const codePoints = Array.from(value).map(
+      (ch) => ch.codePointAt(0) as number,
+    );
+    if (
+      codePoints.length < LIG_MIN_CODES ||
+      codePoints.length > LIG_MAX_CODES
+    ) {
       const hint =
-        codePoints.length < 2
+        codePoints.length < LIG_MIN_CODES
           ? "одиночный символ пишется прямо в сетку, а не в лигатуры"
           : "в KLC-секции LIGATURE ровно колонки Char0..Char3";
       errors.push(
         errorDiag(
           "E_LIG_LENGTH",
           file,
-          `[ligatures].${name}: лигатура из ${codePoints.length} символов; ожидалось 2–4 (${hint})`,
+          `[ligatures].${name}: лигатура из ${codePoints.length} символов; ожидалось ${LIG_MIN_CODES}–${LIG_MAX_CODES} (${hint})`,
         ),
       );
       continue;
@@ -383,7 +404,11 @@ function validateLayer(
       if (parsed.error === undefined) {
         const value = parsed.value as CellValue;
         // @Trans — только в caps/caps_shift, иначе E_CELL_AT.
-        if (value.kind === "trans" && layer !== "caps" && layer !== "caps_shift") {
+        if (
+          value.kind === "trans" &&
+          layer !== "caps" &&
+          layer !== "caps_shift"
+        ) {
           errors.push(
             errorDiag(
               "E_CELL_AT",
@@ -419,11 +444,7 @@ function resolveTransCells(
   file: string,
   errors: Diagnostic[],
 ): void {
-  const pairs: [LayerName, LayerName][] = [
-    ["caps", "base"],
-    ["caps_shift", "base_shift"],
-  ];
-  for (const [dst, src] of pairs) {
+  for (const [dst, src] of TRANS_PAIRS) {
     const dstM = matrices.get(dst);
     if (dstM === undefined || dstM === null) continue;
     const srcM = matrices.get(src);
@@ -433,7 +454,11 @@ function resolveTransCells(
       const srcRow = srcM[r] as CellValue[] | undefined;
       if (srcRow === undefined) {
         errors.push(
-          errorDiag("E_GRID_GEOMETRY", file, `[layout].${dst}: строка ${r + 1} без пары в [layout].${src} для резолва @Trans`),
+          errorDiag(
+            "E_GRID_GEOMETRY",
+            file,
+            `[layout].${dst}: строка ${r + 1} без пары в [layout].${src} для резолва @Trans`,
+          ),
         );
         continue;
       }
@@ -442,7 +467,11 @@ function resolveTransCells(
         const srcCell = srcRow[c] as CellValue | undefined;
         if (srcCell === undefined) {
           errors.push(
-            errorDiag("E_GRID_GEOMETRY", file, `[layout].${dst} строка ${r + 1}, колонка ${c + 1}: нет ячейки [layout].${src} для @Trans`),
+            errorDiag(
+              "E_GRID_GEOMETRY",
+              file,
+              `[layout].${dst} строка ${r + 1}, колонка ${c + 1}: нет ячейки [layout].${src} для @Trans`,
+            ),
           );
           dstRow[c] = { kind: "none" };
           continue;
@@ -451,7 +480,11 @@ function resolveTransCells(
           // В base/base_shift trans невозможен (отклонён в V6),
           // defense in depth на случай ручной сборки матриц.
           errors.push(
-            errorDiag("E_CELL_AT", file, `[layout].${dst} строка ${r + 1}, колонка ${c + 1}: @Trans в [layout].${src} недопустим`),
+            errorDiag(
+              "E_CELL_AT",
+              file,
+              `[layout].${dst} строка ${r + 1}, колонка ${c + 1}: @Trans в [layout].${src} недопустим`,
+            ),
           );
           dstRow[c] = { kind: "none" };
           continue;
@@ -460,59 +493,6 @@ function resolveTransCells(
       }
     }
   }
-}
-
-/** Глубокая копия ячейки (для резолва @Trans; у лигатур свой массив кодов). */
-function cloneCell(cell: CellValue): CellValue {
-  switch (cell.kind) {
-    case "none":
-    case "space":
-    case "nbsp":
-    case "trans":
-      return { kind: cell.kind };
-    case "char":
-      return { kind: "char", codePoint: cell.codePoint };
-    case "ligature":
-      return { kind: "ligature", name: cell.name, codePoints: [...cell.codePoints] };
-  }
-}
-
-/** Нормализовать CRLF, отбросить ведущую/конечную пустые строки. */
-function splitGrid(raw: string): string[] {
-  const lines = raw.replace(/\r\n/g, "\n").split("\n");
-  while (lines.length > 0 && (lines[0] as string).trim() === "") lines.shift();
-  while (lines.length > 0 && (lines[lines.length - 1] as string).trim() === "") lines.pop();
-  return lines;
-}
-
-type CellParse =
-  | { value: CellValue; usedLig?: string; error?: undefined }
-  | { value?: undefined; usedLig?: undefined; error: "unknown-ref" | "length" | "control" | "at" };
-
-/** Разобрать одну ячейку (чистая функция; координаты добавляет вызывающий).
- * `@Trans` возвращается как есть; допустимость слоя (только caps/caps_shift)
- * и резолв в копию base/base_shift — в validateLayer/resolveTransCells.
- */
-export function parseCell(raw: string, ligMap: Map<string, number[]>): CellParse {
-  const cell = raw.trim();
-  if (cell === "@None") return { value: { kind: "none" } };
-  if (cell === "@Space") return { value: { kind: "space" } };
-  if (cell === "@Nbsp") return { value: { kind: "nbsp" } };
-  if (cell === "@Trans") return { value: { kind: "trans" } };
-  if (cell === "@") return { value: { kind: "char", codePoint: 0x40 } };
-  if (cell.startsWith("@")) {
-    if (/^@[A-Za-z][A-Za-z0-9_]*$/.test(cell)) {
-      const name = cell.slice(1);
-      const codePoints = ligMap.get(name);
-      if (codePoints === undefined) return { error: "unknown-ref" };
-      return { value: { kind: "ligature", name, codePoints: [...codePoints] }, usedLig: name };
-    }
-    return { error: "at" };
-  }
-  const chars = Array.from(cell);
-  if (chars.length > 1) return { error: "length" };
-  if (chars.length === 1 && CONTROL_RE.test(cell)) return { error: "control" };
-  return { value: { kind: "char", codePoint: (chars[0] as string).codePointAt(0) as number } };
 }
 
 function cellError(
@@ -527,8 +507,14 @@ function cellError(
   const where = `[layout].${layer} строка ${row}, колонка ${col}`;
   switch (parsed.error) {
     case "unknown-ref": {
-      const suggestion = suggestLigature(cell.slice(1), [...ligNames, ...BUILTIN_TOKENS]);
-      const hint = suggestion !== null ? `; возможно, имелось в виду "@${suggestion}"` : "";
+      const suggestion = suggestLigature(cell.slice(1), [
+        ...ligNames,
+        ...BUILTIN_TOKENS,
+      ]);
+      const hint =
+        suggestion !== null
+          ? `; возможно, имелось в виду "@${suggestion}"`
+          : "";
       return errorDiag(
         "E_CELL_UNKNOWN_REF",
         file,
@@ -558,48 +544,7 @@ function cellError(
   }
 }
 
-/** Ближайшее имя при расстоянии Левенштейна ≤ 2, иначе null. */
-export function suggestLigature(want: string, candidates: string[]): string | null {
-  let best: string | null = null;
-  let bestDist = Infinity;
-  for (const cand of candidates) {
-    const d = levenshtein(want, cand);
-    if (d < bestDist) {
-      bestDist = d;
-      best = cand;
-    }
-  }
-  return bestDist <= 2 && best !== null ? best : null;
-}
-
-export function levenshtein(a: string, b: string): number {
-  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    let diag = prev[0] as number;
-    prev[0] = i;
-    for (let j = 1; j <= b.length; j++) {
-      const temp = prev[j] as number;
-      prev[j] = Math.min(
-        (prev[j] as number) + 1,
-        (prev[j - 1] as number) + 1,
-        diag + (a[i - 1] === b[j - 1] ? 0 : 1),
-      );
-      diag = temp;
-    }
-  }
-  return prev[b.length] as number;
-}
-
 // --- V8 ---
-
-/** Проверить, что кодпоинт — Unicode scalar value. */
-export function checkScalarValue(codePoint: number): ValidationErrorCode | null {
-  if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
-    return "E_UNICODE";
-  }
-  if (codePoint >= 0xd800 && codePoint <= 0xdfff) return "E_UNICODE";
-  return null;
-}
 
 function checkUnicodeScalars(
   matrices: Map<LayerName, CellValue[][] | null>,
@@ -613,7 +558,13 @@ function checkUnicodeScalars(
     seen.add(cp);
     const code = checkScalarValue(cp);
     if (code !== null) {
-      out.push(errorDiag(code, file, `${origin}: код U+${cp.toString(16).toUpperCase()} — не Unicode scalar value`));
+      out.push(
+        errorDiag(
+          code,
+          file,
+          `${origin}: код U+${cp.toString(16).toUpperCase()} — не Unicode scalar value`,
+        ),
+      );
     }
   };
   for (const codePoints of ligMap.values()) {
@@ -626,9 +577,13 @@ function checkUnicodeScalars(
       for (let c = 0; c < row.length; c++) {
         const cell = row[c] as CellValue;
         if (cell.kind === "char") {
-          check(cell.codePoint, `[layout].${layer} строка ${r + 1}, колонка ${c + 1}`);
+          check(
+            cell.codePoint,
+            `[layout].${layer} строка ${r + 1}, колонка ${c + 1}`,
+          );
         } else if (cell.kind === "ligature") {
-          for (const cp of cell.codePoints) check(cp, `[layout].${layer} строка ${r + 1}, колонка ${c + 1}`);
+          for (const cp of cell.codePoints)
+            check(cp, `[layout].${layer} строка ${r + 1}, колонка ${c + 1}`);
         }
       }
     }

@@ -1,10 +1,12 @@
 /**
- * V9. Кросс-файловые проверки (docs/03, стадия V9).
+ * V9. Кросс-файловые проверки.
  *
  * Выполняется один раз после цикла по файлам, только по успешно
  * провалидированным схемам (данные битых файлов ненадёжны).
+
  * Дубликат `msklc.name` — ошибка E_MSKLC_DUP_NAME (второй файл ссылается
  * на первый; из него же следует коллизия выходного `.klc`).
+ *
  * Дубликаты `main.short_name` / `main.name` — предупреждения
  * W_DUP_SHORT / W_DUP_NAME (на генерацию не влияют, но сбивают с толку).
  */
@@ -21,31 +23,32 @@ export interface CrossCheckInput {
 /** Проверить уникальность имён между файлами (первое вхождение — эталон). */
 export function crossCheck(inputs: CrossCheckInput[]): Diagnostic[] {
   const out: Diagnostic[] = [];
+
   const msklcSeen = new Map<string, string>();
   const shortSeen = new Map<string, string>();
   const nameSeen = new Map<string, string>();
 
   for (const input of inputs) {
-    const firstMsklc = msklcSeen.get(input.msklcName);
-    if (firstMsklc !== undefined) {
+    const firstMsklcName = msklcSeen.get(input.msklcName);
+    if (firstMsklcName !== undefined) {
       out.push(
         errorDiag(
           "E_MSKLC_DUP_NAME",
           input.file,
-          `[msklc].name "${input.msklcName}" уже использован в ${firstMsklc}`,
+          `[msklc].name "${input.msklcName}" уже использован в ${firstMsklcName}`,
         ),
       );
     } else {
       msklcSeen.set(input.msklcName, input.file);
     }
 
-    const firstShort = shortSeen.get(input.mainShortName);
-    if (firstShort !== undefined) {
+    const firstShortName = shortSeen.get(input.mainShortName);
+    if (firstShortName !== undefined) {
       out.push(
         warnDiag(
           "W_DUP_SHORT",
           input.file,
-          `[main].short_name "${input.mainShortName}" уже использован в ${firstShort}`,
+          `[main].short_name "${input.mainShortName}" уже использован в ${firstShortName}`,
         ),
       );
     } else {
@@ -65,5 +68,6 @@ export function crossCheck(inputs: CrossCheckInput[]): Diagnostic[] {
       nameSeen.set(input.mainName, input.file);
     }
   }
+
   return out;
 }
