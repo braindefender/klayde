@@ -11,24 +11,32 @@
  * Обычные сообщения и сводка — stdout; ошибки — stderr (docs/01, раздел 5).
  * Возвращает код выхода, process.exit выполняет bootstrap (index.ts).
  */
+import { extractProgramArgs, hasHelpFlag, parseArgs } from "./cli/args.ts";
 import {
-  extractProgramArgs,
-  hasHelpFlag,
-  parseArgs,
-  printUsage,
-} from "./cli/args.ts";
-import { CliError, EXIT_ARGS, EXIT_INTERNAL, EXIT_OK, EXIT_VALIDATION, formatCliError } from "./cli/errors.ts";
+  CliError,
+  EXIT_ARGS,
+  EXIT_INTERNAL,
+  EXIT_OK,
+  EXIT_VALIDATION,
+  formatCliError,
+} from "./cli/errors.ts";
 import { discoverInputs } from "./cli/discover.ts";
 import { validateFile } from "./validation/validate.ts";
 import { crossCheck } from "./validation/crosscheck.ts";
-import { hasErrors, printDiagnostics, type Diagnostic } from "./validation/report.ts";
-import { GENERATOR_RUN_ORDER, getGenerator } from "./generators/registry.ts";
+import {
+  hasErrors,
+  printDiagnostics,
+  type Diagnostic,
+} from "./validation/report.ts";
+import { getGenerator } from "./generators/registry.ts";
+import { USAGE_FULL } from "./cli/const.ts";
+import { OS_LIST } from "./model";
 
 export async function runCli(argv: string[]): Promise<number> {
   const programArgs = extractProgramArgs(argv);
 
   if (hasHelpFlag(programArgs)) {
-    console.log(printUsage());
+    console.log(USAGE_FULL);
     return EXIT_OK;
   }
 
@@ -64,7 +72,10 @@ export async function runCli(argv: string[]): Promise<number> {
       );
     }
   }
-  const diagnostics: Diagnostic[] = results.flatMap((r) => [...r.errors, ...r.warnings]);
+  const diagnostics: Diagnostic[] = results.flatMap((r) => [
+    ...r.errors,
+    ...r.warnings,
+  ]);
   const validSpecs = results.flatMap((r) => (r.spec !== null ? [r.spec] : []));
   diagnostics.push(
     ...crossCheck(
@@ -85,7 +96,7 @@ export async function runCli(argv: string[]): Promise<number> {
   const specs = validSpecs;
 
   // Фаза C: для каждой пары (spec, os) в фиксированном порядке ОС.
-  const requested = GENERATOR_RUN_ORDER.filter((os) => opts.osList.includes(os));
+  const requested = OS_LIST.filter((os) => opts.osList.includes(os));
   let okCount = 0;
   let skipCount = 0;
 
@@ -93,7 +104,9 @@ export async function runCli(argv: string[]): Promise<number> {
     const generator = getGenerator(os);
     for (const spec of specs) {
       if (opts.verbose) {
-        console.log(`verbose: generate os=${os} file=${spec.file} out=${opts.outDir}`);
+        console.log(
+          `verbose: generate os=${os} file=${spec.file} out=${opts.outDir}`,
+        );
       }
       let result;
       try {
@@ -119,7 +132,9 @@ export async function runCli(argv: string[]): Promise<number> {
       `done: входов ${specs.length}, артефактов создано 0 (всё пропущено как not implemented), пропусков ${skipCount}`,
     );
   } else {
-    console.log(`done: входов ${specs.length}, артефактов ${okCount}, пропусков ${skipCount}`);
+    console.log(
+      `done: входов ${specs.length}, артефактов ${okCount}, пропусков ${skipCount}`,
+    );
   }
   return EXIT_OK;
 }
@@ -127,9 +142,11 @@ export async function runCli(argv: string[]): Promise<number> {
 function reportArgsError(err: unknown): number {
   if (err instanceof CliError) {
     console.error(formatCliError(err));
-    console.error(printUsage());
+    console.error(USAGE_FULL);
     return EXIT_ARGS;
   }
-  console.error(`error[E_INTERNAL] ${err instanceof Error ? err.message : String(err)}`);
+  console.error(
+    `error[E_INTERNAL] ${err instanceof Error ? err.message : String(err)}`,
+  );
   return EXIT_INTERNAL;
 }

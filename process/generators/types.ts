@@ -1,5 +1,5 @@
-/** Общий интерфейс генераторов ОС (docs/08, раздел 2). */
-import type { OsId, ValidatedSpec } from "../model/spec.ts";
+import type { OS } from "../model";
+import type { ValidatedSpec } from "../model/spec.ts";
 
 export type GenerateStatus = "ok" | "skip";
 
@@ -12,6 +12,6 @@ export interface GenerateResult {
 }
 
 export interface OsGenerator {
-  readonly os: OsId;
+  readonly os: OS;
   generate(spec: ValidatedSpec, outDir: string): Promise<GenerateResult>;
 }

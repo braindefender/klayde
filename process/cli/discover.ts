@@ -17,13 +17,9 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { DEFAULT_LAYOUTS_DIR } from "./const.ts";
 import { CliError } from "./errors.ts";
-
-export const DEFAULT_LAYOUTS_DIR = "layouts";
-
-function isTomlFile(name: string): boolean {
-  return name.toLowerCase().endsWith(".toml");
-}
+import { isTomlFile } from "./helpers.ts";
 
 async function scanTomlDir(dir: string): Promise<string[]> {
   let entries;

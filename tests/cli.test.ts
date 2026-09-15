@@ -9,8 +9,9 @@ import path from "node:path";
 import { extractProgramArgs, parseArgs } from "../process/cli/args.ts";
 import { CliError, type ErrorCode } from "../process/cli/errors.ts";
 import { discoverInputs } from "../process/cli/discover.ts";
-import { GENERATOR_RUN_ORDER, getGenerator } from "../process/generators/registry.ts";
+import { getGenerator } from "../process/generators/registry.ts";
 import { runCli } from "../process/main.ts";
+import { OS_LIST } from "../process/model";
 
 function expectCliError(fn: () => unknown, code: ErrorCode) {
   try {
@@ -25,9 +26,9 @@ function expectCliError(fn: () => unknown, code: ErrorCode) {
 
 describe("extractProgramArgs", () => {
   test("берёт всё после --", () => {
-    expect(extractProgramArgs(["bun", "index.ts", "--", "--os=windows"])).toEqual([
-      "--os=windows",
-    ]);
+    expect(
+      extractProgramArgs(["bun", "index.ts", "--", "--os=windows"]),
+    ).toEqual(["--os=windows"]);
   });
   test("без -- отрезает первые два argv", () => {
     expect(extractProgramArgs(["bun", "index.ts", "--os=windows"])).toEqual([
@@ -36,7 +37,14 @@ describe("extractProgramArgs", () => {
   });
   test("фильтрует вложенные -- от пресетов package.json", () => {
     expect(
-      extractProgramArgs(["bun", "index.ts", "--", "--os=windows", "--", "--layout=a.toml"]),
+      extractProgramArgs([
+        "bun",
+        "index.ts",
+        "--",
+        "--os=windows",
+        "--",
+        "--layout=a.toml",
+      ]),
     ).toEqual(["--os=windows", "--layout=a.toml"]);
   });
 });
@@ -74,7 +82,12 @@ describe("parseArgs прочие флаги", () => {
     expect(opts.layoutInputs).toEqual([]);
   });
   test("--layout собирается и повторяется, --out и --verbose", () => {
-    const opts = parseArgs(["--layout=a.toml", "--layout=b.toml", "--out=dist", "--verbose"]);
+    const opts = parseArgs([
+      "--layout=a.toml",
+      "--layout=b.toml",
+      "--out=dist",
+      "--verbose",
+    ]);
     expect(opts.layoutInputs).toEqual(["a.toml", "b.toml"]);
     expect(opts.outDir).toBe("dist");
     expect(opts.verbose).toBe(true);
@@ -122,16 +135,25 @@ describe("discoverInputs", () => {
   test("каталог: рекурсивно, *.toml, сортировка, игнор прочих", async () => {
     // Имена строчные и различные: Windows-ФС case-insensitive,
     // поэтому a.toml + A.TOML были бы одним файлом.
-    const dir = await makeTmp({ "b.toml": "x", "a.toml": "x", "note.txt": "x", "c.TOML": "x" });
+    const dir = await makeTmp({
+      "b.toml": "x",
+      "a.toml": "x",
+      "note.txt": "x",
+      "c.TOML": "x",
+    });
     await fs.mkdir(path.join(dir, "sub", "nested"), { recursive: true });
     await fs.writeFile(path.join(dir, "sub", "d.toml"), "x");
     await fs.writeFile(path.join(dir, "sub", "nested", "e.toml"), "x");
     await fs.writeFile(path.join(dir, "sub", "ignore.txt"), "x");
     const found = await discoverInputs([dir]);
     expect(found).toEqual(
-      ["a.toml", "b.toml", "c.TOML", path.join("sub", "d.toml"), path.join("sub", "nested", "e.toml")].map(
-        (n) => path.join(dir, n),
-      ),
+      [
+        "a.toml",
+        "b.toml",
+        "c.TOML",
+        path.join("sub", "d.toml"),
+        path.join("sub", "nested", "e.toml"),
+      ].map((n) => path.join(dir, n)),
     );
   });
 
@@ -156,7 +178,7 @@ describe("discoverInputs", () => {
     // Без привязки к содержимому user-space каталога layouts/:
     // дефолт обязан совпадать с явным указанием DEFAULT_LAYOUTS_DIR,
     // выдавать отсортированный список только *.toml.
-    const { DEFAULT_LAYOUTS_DIR } = await import("../process/cli/discover.ts");
+    const { DEFAULT_LAYOUTS_DIR } = await import("../process/cli/const.ts");
     const found = await discoverInputs([]);
     const explicit = await discoverInputs([DEFAULT_LAYOUTS_DIR]);
     expect(found).toEqual(explicit);
@@ -168,8 +190,8 @@ describe("discoverInputs", () => {
 
 describe("registry", () => {
   test("все ОС зарегистрированы, порядок фиксирован", () => {
-    expect(GENERATOR_RUN_ORDER).toEqual(["windows", "macos", "linux"]);
-    for (const osId of GENERATOR_RUN_ORDER) {
+    expect(OS_LIST).toEqual(["windows", "macos", "linux"]);
+    for (const osId of OS_LIST) {
       expect(getGenerator(osId).os).toBe(osId);
     }
   });
@@ -190,7 +212,12 @@ describe("registry", () => {
 
 describe("runCli коды выхода", () => {
   test("несуществующий layout → 2 (E_LAYOUT_NOT_FOUND)", async () => {
-    const code = await runCli(["bun", "index.ts", "--", "--layout=layouts/no-such.toml"]);
+    const code = await runCli([
+      "bun",
+      "index.ts",
+      "--",
+      "--layout=layouts/no-such.toml",
+    ]);
     expect(code).toBe(2);
   });
   test("неизвестный флаг → 2", async () => {

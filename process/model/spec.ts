@@ -5,8 +5,6 @@
  * Генератор не проверяет размеры.
  */
 
-export type OsId = "windows" | "macos" | "linux";
-
 export type CellValue =
   | { kind: "none" }
   | { kind: "space" }

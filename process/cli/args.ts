@@ -8,79 +8,192 @@
  *   --verbose           |  --verbose=true|false
  *   --help | -h
  *
- * Правила --os: запятая — разделитель, пробелы вокруг допустимы,
- * регистр не важен, дубликаты игнорируются; отсутствие флага —
- * все известные ОС; пустое значение — E_OS_EMPTY; неизвестное —
- * E_OS_UNKNOWN. Порядок ОС нормализуется к фиксированному
- * windows,macos,linux ради детерминизма логов.
+ * Правила --os:
+ * - запятая — разделитель,
+ * - пробелы вокруг допустимы,
+ * - регистр не важен,
+ * - дубликаты игнорируются;
+ * - отсутствие флага — все известные ОС;
+ * - пустое значение — E_OS_EMPTY;
+ * - неизвестное — E_OS_UNKNOWN.
+ * Порядок ОС нормализуется к фиксированному
+ * "windows,macos,linux" ради детерминизма логов.
+ *
+ * Пайплайн:
+ *   1. collectRaw — линейный скан токенов в сырую структуру RawCli.
+ *      Любая синтаксическая ошибка (неизвестный флаг, позиционный
+ *      аргумент, отсутствие значения) сразу бросает CliError —
+ *      дальше не идём.
+ *   2. resolve* — проверка значений и подстановка дефолтов.
+ *      Любая семантическая ошибка (пустой/неизвестный --os и т.п.)
+ *      сразу бросает CliError.
+ *   3. parseArgs собирает валидный CliOptions: после возврата
+ *      структура гарантированно пригодна к использованию.
  */
 
+import { isStringEmpty, normalize } from "../helpers";
+import { isKnownOs, OS_LIST, type OS } from "../model";
+import { DEFAULT_OUT_DIR, KNOWN_FLAGS, USAGE_HINT } from "./const.ts";
 import { CliError } from "./errors.ts";
-import type { OsId } from "../model/spec.ts";
+import { parseBooleanValue, readFlagValue, splitFlag } from "./helpers.ts";
 
 export interface CliOptions {
-  osList: OsId[];
+  osList: OS[];
   /** Сырые значения --layout (резолвятся в discoverInputs). */
   layoutInputs: string[];
   outDir: string;
   verbose: boolean;
 }
 
-export const KNOWN_OS: readonly OsId[] = ["windows", "macos", "linux"];
-
-/** Фиксированный порядок запуска генераторов (docs/01, раздел 2). */
-export const OS_RUN_ORDER: readonly OsId[] = ["windows", "macos", "linux"];
-
-export const DEFAULT_OUT_DIR = "build";
-
-const KNOWN_FLAGS = new Set(["--os", "--layout", "--out", "--verbose", "--help", "-h"]);
-
-function isKnownOs(value: string): value is OsId {
-  return (KNOWN_OS as readonly string[]).includes(value);
+/** Сырой результат скана: значения как есть, без проверки содержимого. */
+interface RawCli {
+  osRaws: string[];
+  layoutInputs: string[];
+  outRaw: string | undefined;
+  verboseRaw: string | undefined;
+  hasVerbose: boolean;
 }
 
-function parseOsValue(raw: string | undefined): OsId[] | { error: CliError } {
-  if (raw === undefined || raw.trim() === "") {
-    return {
-      error: new CliError(
-        "E_OS_EMPTY",
-        `--os: пустое значение; укажите одну или несколько ОС: ${KNOWN_OS.join(", ")}`,
-      ),
-    };
+// --- Стадия 1: скан ---
+
+/** Линейный скан токенов в RawCli. Первая же ошибка — бросок, дальше не идём. */
+function collectRaw(programArgs: string[]): RawCli {
+  const raw: RawCli = {
+    osRaws: [],
+    layoutInputs: [],
+    outRaw: undefined,
+    verboseRaw: undefined,
+    hasVerbose: false,
+  };
+
+  let i = 0;
+  while (i < programArgs.length) {
+    const token = programArgs[i] as string;
+    const { head, inlineValue } = splitFlag(token);
+
+    if (!head.startsWith("-")) {
+      throw new CliError(
+        "E_ARGS_UNKNOWN",
+        `неизвестный аргумент "${token}". ${USAGE_HINT}`,
+      );
+    }
+    if (!KNOWN_FLAGS.has(head)) {
+      throw new CliError(
+        "E_ARGS_UNKNOWN",
+        `неизвестный флаг "${head}". ${USAGE_HINT}`,
+      );
+    }
+
+    switch (head) {
+      case "--os": {
+        const { value, nextIndex } = readFlagValue(programArgs, i, inlineValue);
+        i = nextIndex;
+        if (value === undefined) {
+          throw new CliError(
+            "E_OS_EMPTY",
+            `--os: отсутствует значение; укажите одну или несколько ОС: ${OS_LIST.join(", ")}`,
+          );
+        }
+        raw.osRaws.push(value);
+        break;
+      }
+      case "--layout": {
+        const { value, nextIndex } = readFlagValue(programArgs, i, inlineValue);
+        i = nextIndex;
+        if (value === undefined || value.trim() === "") {
+          throw new CliError(
+            "E_ARGS_UNKNOWN",
+            `--layout: отсутствует значение; укажите путь к .toml-файлу или каталогу. ${USAGE_HINT}`,
+          );
+        }
+        raw.layoutInputs.push(value);
+        break;
+      }
+      case "--out": {
+        const { value, nextIndex } = readFlagValue(programArgs, i, inlineValue);
+        i = nextIndex;
+        if (isStringEmpty(value)) {
+          throw new CliError(
+            "E_ARGS_UNKNOWN",
+            `--out: отсутствует значение; укажите каталог (по умолчанию: ${DEFAULT_OUT_DIR}). ${USAGE_HINT}`,
+          );
+        }
+        raw.outRaw = value;
+        break;
+      }
+      case "--verbose": {
+        // --verbose значение через пробел не принимает: только инлайн
+        // (`--verbose=false`); следующий токен не забираем.
+        raw.hasVerbose = true;
+        raw.verboseRaw = inlineValue;
+        i += 1;
+        break;
+      }
+      case "--help":
+      case "-h": {
+        // Обрабатывается в runCli до парсинга (hasHelpFlag);
+        // здесь игнорируем, чтобы parseArgs оставалась чистой.
+        i += 1;
+        break;
+      }
+    }
   }
-  const parts = raw
+
+  return raw;
+}
+
+// --- Стадия 2: проверка значений + дефолты ---
+
+/** Разобрать склеенные значения --os. Пусто/неизвестно — бросок. Чистая. */
+function resolveOsList(osRaws: string[]): OS[] {
+  if (osRaws.length === 0) return [...OS_LIST];
+  return parseOsValueOrThrow(osRaws.join(","));
+}
+
+/** Разобрать одно значение --os (запятые, пробелы, регистр). Бросок при проблеме. Чистая. */
+function parseOsValueOrThrow(raw: string | undefined): OS[] {
+  if (isStringEmpty(raw)) {
+    throw new CliError(
+      "E_OS_EMPTY",
+      `--os: пустое значение; укажите одну или несколько ОС: ${OS_LIST.join(", ")}`,
+    );
+  }
+
+  const parts = (raw as string)
     .split(",")
-    .map((p) => p.trim().toLowerCase())
+    .map(normalize)
     .filter((p) => p.length > 0);
+
   if (parts.length === 0) {
-    return {
-      error: new CliError(
-        "E_OS_EMPTY",
-        `--os: пустое значение; укажите одну или несколько ОС: ${KNOWN_OS.join(", ")}`,
-      ),
-    };
+    throw new CliError(
+      "E_OS_EMPTY",
+      `--os: пустое значение; укажите одну или несколько ОС: ${OS_LIST.join(", ")}`,
+    );
   }
   const unknown = parts.filter((p) => !isKnownOs(p));
   if (unknown.length > 0) {
-    return {
-      error: new CliError(
-        "E_OS_UNKNOWN",
-        `--os: неизвестная ОС "${unknown.join(", ")}"; допустимые: ${KNOWN_OS.join(", ")}`,
-      ),
-    };
+    throw new CliError(
+      "E_OS_UNKNOWN",
+      `--os: неизвестная ОС "${unknown.join(", ")}"; допустимые: ${OS_LIST.join(", ")}`,
+    );
   }
-  const deduped = [...new Set(parts as OsId[])];
-  deduped.sort((a, b) => OS_RUN_ORDER.indexOf(a) - OS_RUN_ORDER.indexOf(b));
+  const deduped = [...new Set(parts as OS[])];
+  deduped.sort((a, b) => OS_LIST.indexOf(a) - OS_LIST.indexOf(b));
   return deduped;
 }
 
-function parseVerboseValue(raw: string | undefined): boolean {
-  if (raw === undefined || raw === "") return true;
-  const v = raw.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(v)) return true;
-  if (["0", "false", "no", "off"].includes(v)) return false;
-  return true;
+/** Дефолт выхода — DEFAULT_OUT_DIR. Чистая. */
+function resolveOutDir(outRaw: string | undefined): string {
+  return outRaw ?? DEFAULT_OUT_DIR;
 }
+
+/** Дефолт verbose — false; флаг без значения — true. Чистая. */
+function resolveVerbose(raw: RawCli): boolean {
+  if (!raw.hasVerbose) return false;
+  return parseBooleanValue(raw.verboseRaw);
+}
+
+// --- Стадия 3: сборка ---
 
 /**
  * Отделить аргументы программы от аргументов Bun.
@@ -93,132 +206,24 @@ export function extractProgramArgs(argv: string[]): string[] {
   return argv.slice(2).filter((a) => a !== "--");
 }
 
-export function printUsage(): string {
-  return [
-    "Использование:",
-    "  bun run start -- [--os=<os,...>] [--layout=<путь>...] [--out=<каталог>] [--verbose]",
-    "",
-    "Примеры:",
-    '  bun run start -- --os="windows,macos,linux" --layout="layouts/universal-layout-ortho-merged.toml"',
-    "  bun run windows -- --layout=\"layouts/foo.toml\"",
-    "  bun run all",
-    "",
-    "Флаги:",
-    `  --os=<список>      ОС для генерации (по умолчанию: ${KNOWN_OS.join(",")});`,
-    "                     разделитель — запятая, регистр не важен, дубликаты игнорируются",
-    "  --layout=<путь>    TOML-схема, каталог с TOML (рекурсивно) или несколько --layout (по умолчанию: layouts/)",
-    "  --out=<каталог>    корень выхода (по умолчанию: build; структура layouts/ сохраняется, подкаталог ОС добавляется автоматически)",
-    "  --verbose          подробные логи по каждой стадии",
-    "  --help, -h         показать эту подсказку",
-  ].join("\n");
-}
-
+/**
+ * Пайплайн: скан → проверка + дефолты → валидный CliOptions.
+ * Первая же ошибка бросает CliError; успешный возврат означает,
+ * что структуру можно использовать без дополнительных проверок.
+ */
 export function parseArgs(programArgs: string[]): CliOptions {
-  const osRaws: string[] = [];
-  const layoutInputs: string[] = [];
-  let outDir: string | undefined;
-  let verbose = false;
-
-  for (let i = 0; i < programArgs.length; i++) {
-    const token = programArgs[i] as string;
-
-    // Флаг в форме --name=value
-    const eq = token.indexOf("=");
-    const head = eq >= 0 ? token.slice(0, eq) : token;
-    const inlineValue = eq >= 0 ? token.slice(eq + 1) : undefined;
-
-    if (!head.startsWith("-")) {
-      throw new CliError(
-        "E_ARGS_UNKNOWN",
-        `неизвестный аргумент "${token}". ${usageHint()}`,
-      );
-    }
-    if (!KNOWN_FLAGS.has(head)) {
-      throw new CliError("E_ARGS_UNKNOWN", `неизвестный флаг "${head}". ${usageHint()}`);
-    }
-
-    const takeValue = (flag: string): string | undefined => {
-      if (inlineValue !== undefined) return inlineValue;
-      const next = programArgs[i + 1];
-      if (next === undefined || next.startsWith("-")) return undefined;
-      i++;
-      return next;
-    };
-
-    switch (head) {
-      case "--os": {
-        const v = takeValue("--os");
-        if (v === undefined) {
-          throw new CliError(
-            "E_OS_EMPTY",
-            `--os: отсутствует значение; укажите одну или несколько ОС: ${KNOWN_OS.join(", ")}`,
-          );
-        }
-        osRaws.push(v);
-        break;
-      }
-      case "--layout": {
-        const v = takeValue("--layout");
-        if (v === undefined || v.trim() === "") {
-          throw new CliError(
-            "E_ARGS_UNKNOWN",
-            `--layout: отсутствует значение; укажите путь к .toml-файлу или каталогу. ${usageHint()}`,
-          );
-        }
-        layoutInputs.push(v);
-        break;
-      }
-      case "--out": {
-        const v = takeValue("--out");
-        if (v === undefined || v.trim() === "") {
-          throw new CliError(
-            "E_ARGS_UNKNOWN",
-            `--out: отсутствует значение; укажите каталог (по умолчанию: ${DEFAULT_OUT_DIR}). ${usageHint()}`,
-          );
-        }
-        outDir = v;
-        break;
-      }
-      case "--verbose": {
-        verbose = parseVerboseValue(inlineValue);
-        break;
-      }
-      case "--help":
-      case "-h": {
-        // Обрабатывается в runCli до/после парсинга; здесь помечаем
-        // специальным флагом через исключение с печатью usage в stdout.
-        // parseArgs остаётся чистой, поэтому просто игнорируем:
-        // runCli проверяет наличие --help заранее.
-        break;
-      }
-    }
-  }
-
-  let osList: OsId[];
-  if (osRaws.length === 0) {
-    osList = [...KNOWN_OS];
-  } else {
-    const merged = osRaws.join(",");
-    const parsed = parseOsValue(merged);
-    if ("error" in parsed) throw parsed.error;
-    osList = parsed;
-  }
-
+  const raw = collectRaw(programArgs);
   return {
-    osList,
-    layoutInputs,
-    outDir: outDir ?? DEFAULT_OUT_DIR,
-    verbose,
+    osList: resolveOsList(raw.osRaws),
+    layoutInputs: raw.layoutInputs,
+    outDir: resolveOutDir(raw.outRaw),
+    verbose: resolveVerbose(raw),
   };
 }
 
 export function hasHelpFlag(programArgs: string[]): boolean {
   return programArgs.some((a) => {
-    const head = a.split("=")[0];
+    const { head } = splitFlag(a);
     return head === "--help" || head === "-h";
   });
-}
-
-function usageHint(): string {
-  return "См. usage: bun run start -- --help";
 }
