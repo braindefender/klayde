@@ -9,7 +9,7 @@
  */
 import path from "node:path";
 import type { OsId } from "../model/spec.ts";
-import { DEFAULT_LAYOUTS_DIR } from "../layouts/discover.ts";
+import { DEFAULT_LAYOUTS_DIR } from "../cli/discover.ts";
 
 export function resolveOsOutDir(
   outDir: string,

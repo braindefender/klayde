@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { runCli } from "../process/main.ts";
 import { writeKlcFile } from "../process/generators/windows/klcWriter.ts";
-import { validateFile } from "../process/layouts/validate.ts";
+import { validateFile } from "../process/validation/validate.ts";
 
 /** Перехватить console.log/error на время fn; вернуть собранные строки. */
 async function capture(fn: () => Promise<number>): Promise<{

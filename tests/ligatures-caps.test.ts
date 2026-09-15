@@ -15,7 +15,7 @@
  * - неиспользуемая лигатура — предупреждение и отсутствие в выводе.
  */
 import { describe, expect, test } from "bun:test";
-import { validateFile } from "../process/layouts/validate.ts";
+import { validateFile } from "../process/validation/validate.ts";
 import { buildLayoutBlock } from "../process/generators/windows/klcLayout.ts";
 import { buildKlcText } from "../process/generators/windows/klcWriter.ts";
 import type { ValidatedSpec } from "../process/model/spec.ts";

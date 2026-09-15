@@ -17,7 +17,7 @@
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { CliError } from "../cli/errors.ts";
+import { CliError } from "./errors.ts";
 
 export const DEFAULT_LAYOUTS_DIR = "layouts";
 

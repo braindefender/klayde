@@ -21,7 +21,7 @@ import { describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { validateFile } from "../process/layouts/validate.ts";
+import { validateFile } from "../process/validation/validate.ts";
 import { buildKlcText, serializeKlc, writeKlcFile } from "../process/generators/windows/klcWriter.ts";
 import { KlcBuildError } from "../process/generators/windows/klcLayout.ts";
 import type { ValidatedSpec } from "../process/model/spec.ts";

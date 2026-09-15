@@ -18,10 +18,10 @@ import {
   printUsage,
 } from "./cli/args.ts";
 import { CliError, EXIT_ARGS, EXIT_INTERNAL, EXIT_OK, EXIT_VALIDATION, formatCliError } from "./cli/errors.ts";
-import { discoverInputs } from "./layouts/discover.ts";
-import { validateFile } from "./layouts/validate.ts";
-import { crossCheck } from "./layouts/crosscheck.ts";
-import { hasErrors, printDiagnostics, type Diagnostic } from "./layouts/report.ts";
+import { discoverInputs } from "./cli/discover.ts";
+import { validateFile } from "./validation/validate.ts";
+import { crossCheck } from "./validation/crosscheck.ts";
+import { hasErrors, printDiagnostics, type Diagnostic } from "./validation/report.ts";
 import { GENERATOR_RUN_ORDER, getGenerator } from "./generators/registry.ts";
 
 export async function runCli(argv: string[]): Promise<number> {

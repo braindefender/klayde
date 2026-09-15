@@ -14,10 +14,10 @@ klayde/
     cli/
       args.ts         # парсинг --os/--layout/--out/--verbose + usage
       errors.ts       # коды E_* / exit codes
+      discover.ts     # резолв входов в список файлов
     model/
       spec.ts         # типы LayoutSpec, CellValue, ValidatedSpec
-    layouts/
-      discover.ts     # резолв входов в список файлов
+    validation/
       rawcheck.ts     # V0: поиск """ по сырому тексту
       parse.ts        # V1–V2: TOML-парсинг + структура
       validate.ts     # V3–V8: валидаторы одного файла
@@ -88,7 +88,7 @@ interface OsGenerator {
 для всех файлов, либо ни для одного. Частичная генерация запрещена.
 
 Зависимости текут в одну сторону: `generators/windows/*` зависит от
-`model` и `layouts/*` (читает `ValidatedSpec`), но не наоборот. `cli`
+`model` и `validation/*` (читает `ValidatedSpec`), но не наоборот. `cli`
 не знает про KLC. Таблица позиций и таблица Unicode — чистые данные
 без логики, подменяемые в тестах.
 

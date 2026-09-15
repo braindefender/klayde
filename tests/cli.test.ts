@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { extractProgramArgs, parseArgs } from "../process/cli/args.ts";
 import { CliError, type ErrorCode } from "../process/cli/errors.ts";
-import { discoverInputs } from "../process/layouts/discover.ts";
+import { discoverInputs } from "../process/cli/discover.ts";
 import { GENERATOR_RUN_ORDER, getGenerator } from "../process/generators/registry.ts";
 import { runCli } from "../process/main.ts";
 
@@ -156,7 +156,7 @@ describe("discoverInputs", () => {
     // Без привязки к содержимому user-space каталога layouts/:
     // дефолт обязан совпадать с явным указанием DEFAULT_LAYOUTS_DIR,
     // выдавать отсортированный список только *.toml.
-    const { DEFAULT_LAYOUTS_DIR } = await import("../process/layouts/discover.ts");
+    const { DEFAULT_LAYOUTS_DIR } = await import("../process/cli/discover.ts");
     const found = await discoverInputs([]);
     const explicit = await discoverInputs([DEFAULT_LAYOUTS_DIR]);
     expect(found).toEqual(explicit);
@@ -174,7 +174,7 @@ describe("registry", () => {
     }
   });
   test("windows реализован, macos/linux — заглушки skip (фаза 4)", async () => {
-    const { validateFile } = await import("../process/layouts/validate.ts");
+    const { validateFile } = await import("../process/validation/validate.ts");
     const r = await validateFile("tests/fixtures/valid-mini.toml");
     if (!r.spec) throw new Error("valid-mini обязан валидироваться");
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-reg-"));

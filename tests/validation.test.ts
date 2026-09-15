@@ -15,9 +15,9 @@ import { describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { crossCheck } from "../process/layouts/crosscheck.ts";
-import { validateFile, validateText, checkScalarValue } from "../process/layouts/validate.ts";
-import type { ValidationCode } from "../process/layouts/report.ts";
+import { crossCheck } from "../process/validation/crosscheck.ts";
+import { validateFile, validateText, checkScalarValue } from "../process/validation/validate.ts";
+import type { ValidationCode } from "../process/validation/report.ts";
 import { runCli } from "../process/main.ts";
 
 async function validateFixture(name: string) {
