@@ -1,7 +1,7 @@
 # Генерация `.klc` для Windows: алгоритм
 
-Вход: `ValidatedSpec` (см. `docs/03-validation.md`: матрицы 5×10, карта
-лигатур, флаг `capsIsShift`, метаданные). Выход: текст `.klc` в UTF-16LE
+Вход: `ValidatedSpec` (см. `docs/03-validation.md`: матрицы 5×10 всех 6
+слоёв, карта лигатур, метаданные). Выход: текст `.klc` в UTF-16LE
 с BOM и CRLF. Побочных эффектов, кроме записи одного файла, нет.
 
 ## 1. Подготовка данных
@@ -23,12 +23,12 @@
    из таблицы позиций (не из TOML). `@Trans` к этому моменту уже раскрыт
    валидатором: в `caps` лежит копия `base`, в `caps_shift` — копия
    `base_shift` (включая лигатуры).
-5. Определить пару `caps` для `SG`-клавиш: если `capsIsShift` — взять
-   `caps = s1`, `capsShift = s0` (legacy SGCap+swap как в эталонах);
-   иначе — `caps = caps_layer[r][c]`, `capsShift = caps_shift_layer[r][c]`.
-   Для `Cap0`-клавиш пара не нужна. Для явных caps действует
+5. Определить пару `caps` для `SGCap`-позиций только из явных слоёв:
+   `caps = caps_layer[r][c]`, `capsShift = caps_shift_layer[r][c]`
+   (оба слоя обязательны). Для `Cap0`-позиций пара не нужна. Действует
    Cap-оптимизация (раздел 3, пп. 2–4): прозрачность → `Cap 0`,
-   swap → `Cap 1`, иначе `SGCap`.
+   swap → `Cap 1`, иначе `SGCap`. Не-буквы в `SGCap`-зоне (ряды 2–4)
+   размечаются `@Trans` и дают `Cap 0` — системный CapsLock их не трогает.
 
 ## 2. Кодирование одного значения в колонку `LAYOUT`
 
@@ -59,12 +59,11 @@
    `c6 = encodeCell(s6)`, `c7 = encodeCell(s7)`.
    Исключение: `SC 39` (`SPACE`) — `c7` всегда `-1` (см. раздел 4
    позиционной таблицы).
-2. Определить `cap`: `0` для `Cap0`-зоны; для `SG`-зоны при глобальном
-   `capsIsShift` — всегда `SGCap` (legacy); при явных caps — `0`, если
-   `caps==base` и `caps_shift==base_shift` (прозрачность, CapsLock без
-   эффекта — сюда попадает `@Trans/@Trans`); `1`, если `base!=shift`,
-   `caps==shift` и `caps_shift==base` (нативный caps=shift MSKLC);
-   иначе `SGCap`.
+2. Определить `cap`: `0` для `Cap0`-зоны; для `SGCap`-зоны —
+   `0`, если `caps==base` и `caps_shift==base_shift` (прозрачность,
+   CapsLock без эффекта — сюда попадают не-буквы с `@Trans/@Trans`);
+   `1`, если `base!=shift`, `caps==shift` и `caps_shift==base`
+   (нативный caps=shift MSKLC); иначе `SGCap`.
 3. Записать строку `SC\tVK\t\tCap\tc0\tc1\tc2\tc6\tc7\t\t// <комментарий>`.
    Форматирование — табуляции как в эталоне (после `VK` две табуляции,
    после последней колонки две табуляции перед `//`). Точное число

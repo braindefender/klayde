@@ -4,8 +4,10 @@
  * Тесты опираются только на tests/fixtures (каталог layouts/ — user-space
  * и здесь не используется). Параметризованные проверки поверх поведения
  * фаз 2/4:
- * - схемы без caps: все расширения — swap (shift, base);
- * - схемы с caps: все расширения — значения caps/caps_shift из TOML;
+ * - english-схемы: буквы (caps==shift) — Cap 1, не-буквы
+ *   (caps=@Trans) — Cap 0, SGCap-расширений нет (CapsLock по системе
+ *   затрагивает только буквы);
+ * - merged/russian-схемы: все расширения — значения caps/caps_shift из TOML;
  * - @Trans: прозрачность → Cap 0, swap → Cap 1, лигатура через @Trans
  *   переиспользует Mod# из base без G_CAPS_LIGATURE;
  * - лигатуры в base/base_shift/altgr_shift (Mod# 0/1/4), N мест — N строк;
@@ -62,31 +64,29 @@ async function tomlLayout(file: string): Promise<Record<string, string>> {
   return (Bun.TOML.parse(text) as { layout: Record<string, string> }).layout;
 }
 
-describe("caps=shift: все расширения — swap (shift, base)", () => {
+describe("явные caps english: буквы — Cap 1, не-буквы — Cap 0, расширений нет", () => {
   const files = [
     "tests/fixtures/golden-english.toml",
     "tests/fixtures/golden-english-inverted.toml",
-    "tests/fixtures/golden-russian.toml",
-    "tests/fixtures/golden-russian-inverted.toml",
   ];
   for (const file of files) {
-    test(`${file}: 30 swap-расширений`, async () => {
+    test(`${file}: 0 расширений, 26×Cap 1 + 23×Cap 0`, async () => {
       const spec = await loadSpec(file);
-      expect(spec.capsIsShift).toBe(true);
+      expect(spec.layers.caps.length).toBe(5);
       const { dataRows } = buildLayoutBlock(spec);
-      let extCount = 0;
-      for (let i = 0; i < dataRows.length; i++) {
-        const main = parseRow(dataRows[i] as string);
-        if (main.cols[0] === "-1") continue;
-        if (main.cols[2] !== "SGCap") continue;
-        const ext = parseRow(dataRows[i + 1] as string);
-        expect(ext.cols.slice(0, 3)).toEqual(["-1", "-1", "0"]);
-        // e0 === c1 (shift), e1 === c0 (base) — строковый уровень.
-        expect(ext.cols[3]).toBe(main.cols[4]);
-        expect(ext.cols[4]).toBe(main.cols[3]);
-        extCount++;
-      }
-      expect(extCount).toBe(30);
+      const mains = dataRows.filter((r) => !r.startsWith("-1"));
+      const exts = dataRows.filter((r) => r.startsWith("-1"));
+      expect(mains.length).toBe(49);
+      expect(exts).toEqual([]);
+      const caps = mains.map((r) => parseRow(r).cols[2]);
+      expect(caps.filter((c) => c === "1").length).toBe(26);
+      expect(caps.filter((c) => c === "0").length).toBe(23);
+      expect(caps.some((c) => c === "SGCap")).toBe(false);
+      // Точечно: буква Q (SC 10) — swap caps==shift → Cap 1;
+      // символ r3c10 (SC 27, caps=@Trans) — прозрачность → Cap 0.
+      const bySc = new Map(mains.map((r) => [parseRow(r).cols[0] as string, parseRow(r)]));
+      expect(bySc.get("10")?.cols[2]).toBe("1");
+      expect(bySc.get("27")?.cols[2]).toBe("0");
     });
   }
 });
@@ -95,11 +95,12 @@ describe("явные caps: все расширения — значения сл
   const files = [
     "tests/fixtures/golden-merged.toml",
     "tests/fixtures/golden-merged-inverted.toml",
+    "tests/fixtures/golden-russian.toml",
+    "tests/fixtures/golden-russian-inverted.toml",
   ];
   for (const file of files) {
     test(`${file}: 30 расширений из caps/caps_shift`, async () => {
       const spec = await loadSpec(file);
-      expect(spec.capsIsShift).toBe(false);
       const layout = await tomlLayout(file);
       const { LAYOUT_SC_ORDER, positionBySc } = await import(
         "../process/generators/windows/positions.ts"
@@ -174,7 +175,6 @@ describe("многосимвольные раскрытия", () => {
 describe("@Trans: Cap 0/1 без расширений", () => {
   test("valid-trans: swap → Cap 1, прозрачность → Cap 0, distinct → SGCap", async () => {
     const spec = await loadSpec("tests/fixtures/valid-trans.toml");
-    expect(spec.capsIsShift).toBe(false);
     const { dataRows, ligRows } = buildLayoutBlock(spec);
     const mains = dataRows.filter((r) => !r.startsWith("-1"));
     const exts = dataRows.filter((r) => r.startsWith("-1"));

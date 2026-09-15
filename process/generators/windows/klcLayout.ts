@@ -14,10 +14,15 @@
  *   старше ₽); особый случай DECIMAL (c2/c6/c7 все `-1`) — пустые имена;
  * - расширение SGCap: `-1\\t-1\\t0\\tcaps\\tcapsShift\\t\\t// <n1>, <n2>`;
  *   лигатура в SGCap-расширении — G_CAPS_LIGATURE (docs/06, раздел 3);
- * - Cap-оптимизация для явных caps (включая @Trans): прозрачный
- *   (caps==base) → Cap 0 без расширения, swap (caps==shift) → Cap 1
- *   без расширения (нативный caps=shift MSKLC); глобальный capsIsShift
- *   без caps-слоёв — legacy SGCap+swap как в эталонах;
+ * - Cap-оптимизация для caps (включая @Trans, уже резолвленный
+ *   в caps←base, caps_shift←base_shift): прозрачный
+ *   (caps==base && caps_shift==base_shift) → Cap 0 без расширения
+ *   (CapsLock без эффекта — для не-букв с @Trans), swap
+ *   (caps==shift && caps_shift==base) → Cap 1 без расширения
+ *   (нативный caps=shift MSKLC); иначе SGCap с расширением.
+ *   Слои caps/caps_shift обязательны: системный CapsLock затрагивает
+ *   только буквы, поэтому старые схемы без caps (SGCap для всех
+ *   30 клавиш рядов 2–4) неверны для пунктуации/цифр;
  * - строка LIGATURE: `VK\\t\\tMod#\\tкоды\\t\\t// <имена через " + ">`;
  *   Mod#: s0→0, s1→1, s6→3, s7→4 (индекс в SHIFTSTATE, docs/04, раздел 3).
  */
@@ -171,58 +176,40 @@ export function buildLayoutBlock(
     // SC 39 (SPACE): c7 всегда -1, независимо от сетки.
     const t7 = sc === "39" ? "-1" : layoutValueText(s7, table);
 
-    // Cap-колонка и пара caps для SG-клавиш.
-    // - capsIsShift (глобально, без caps-слоёв): legacy swap (shift, base)
-    //   с SGCap-расширением (побайтово как в 6 эталонах; golden-совместимость).
-    //   Исключение — лигатура в s0/s1 на SGCap-клавише: swap-расширение
-    //   содержало бы %% без Mod# (G_CAPS_LIGATURE), поэтому вместо этого
-    //   Cap 1/0 без расширения (нативный caps=shift MSKLC, как J-лигатура
-    //   с галочкой caps=shift в caps_shift_test.klc); лигатуры
-    //   переиспользуют Mod# 0/1 из base.
-    // - явные caps/caps_shift (включая @Trans, уже резолвленный в
-    //   caps←base, caps_shift←base_shift): оптимизация без расширения —
-    //   прозрачный (caps==base) → Cap 0, swap (caps==shift) → Cap 1,
-    //   иначе SGCap с расширением. Cap 0/1 повторяют нативный MSKLC
-    //   (см. caps_shift_test.klc: H с Cap 1).
-    //   Лигатура в caps допустима только при Cap 0/1 (переиспользует
-    //   Mod# 0/1 из base); при SGCap — G_CAPS_LIGATURE, т.к. MSKLC не
-    //   предоставляет Mod# для caps-расширений.
+    // Cap-колонка и пара caps для SGCap-позиций.
+    // Слои caps/caps_shift обязательны (включая @Trans, уже резолвленный
+    // в caps←base, caps_shift←base_shift): оптимизация без расширения —
+    // прозрачный (caps==base && caps_shift==base_shift) → Cap 0
+    // (CapsLock без эффекта — сюда попадают не-буквенные клавиши
+    // с @Trans, т.к. системный CapsLock затрагивает только буквы);
+    // swap (caps==shift && caps_shift==base) → Cap 1
+    // (нативный caps=shift MSKLC, см. caps_shift_test.klc: H с Cap 1),
+    // иначе SGCap с расширением.
+    // Лигатура в caps допустима только при Cap 0/1 (переиспользует
+    // Mod# 0/1 из base); при SGCap — G_CAPS_LIGATURE, т.к. MSKLC не
+    // предоставляет Mod# для caps-расширений.
     let cap = pos.cap === "SGCap" ? "SGCap" : "0";
     let capsPair: [CellValue, CellValue] | null = null;
     if (pos.cap === "SGCap") {
-      if (spec.capsIsShift) {
-        if (s0.kind === "ligature" || s1.kind === "ligature") {
-          // Swap без расширения: CapsLock как Shift, лигатуры из base.
-          if (cellsEqual(s0, s1)) {
-            cap = "0";
-          } else {
-            cap = "1";
-          }
-          capsPair = null;
-        } else {
-          capsPair = [s1, s0];
+      const c0 = at(spec.layers.caps, pos.col);
+      const c1 = at(spec.layers.capsShift, pos.col);
+      for (const v of [c0, c1]) {
+        if (v.kind === "trans") {
+          throw new KlcBuildError(
+            "G_INTERNAL",
+            `sc ${sc}: @Trans в caps достиг генератора без резолва`,
+          );
         }
+      }
+      if (cellsEqual(c0, s0) && cellsEqual(c1, s1)) {
+        cap = "0";
+        capsPair = null;
+      } else if (!cellsEqual(s0, s1) && cellsEqual(c0, s1) && cellsEqual(c1, s0)) {
+        cap = "1";
+        capsPair = null;
       } else {
-        const c0 = at(spec.layers.caps as CellValue[][], pos.col);
-        const c1 = at(spec.layers.capsShift as CellValue[][], pos.col);
-        for (const v of [c0, c1]) {
-          if (v.kind === "trans") {
-            throw new KlcBuildError(
-              "G_INTERNAL",
-              `sc ${sc}: @Trans в caps достиг генератора без резолва`,
-            );
-          }
-        }
-        if (cellsEqual(c0, s0) && cellsEqual(c1, s1)) {
-          cap = "0";
-          capsPair = null;
-        } else if (!cellsEqual(s0, s1) && cellsEqual(c0, s1) && cellsEqual(c1, s0)) {
-          cap = "1";
-          capsPair = null;
-        } else {
-          cap = "SGCap";
-          capsPair = [c0, c1];
-        }
+        cap = "SGCap";
+        capsPair = [c0, c1];
       }
       if (capsPair !== null) {
         for (const v of capsPair) {

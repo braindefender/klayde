@@ -16,15 +16,20 @@
  *     `@Trans` разрешён только в caps/caps_shift (иначе E_CELL_AT)
  *     и резолвится в копию base/base_shift (caps←base,
  *     caps_shift←base_shift) до V8/spec.
- * V7: caps/caps_shift — либо оба, либо ни одного (E_CAPS_HALF);
- *     отсутствие — флаг capsIsShift.
+ * V7: удалён — слои caps/caps_shift обязательные (V2 требует все 6
+ *     слоёв; отсутствие — E_SCHEMA_UNKNOWN_KEY). Отдельного кода
+ *     E_CAPS_HALF больше нет: половинчатый набор невозможен без
+ *     ошибки V2. Генератор всегда использует явные caps/caps_shift;
+ *     какие клавиши реагируют на CapsLock определяется их содержимым
+ *     (@Trans — без эффекта, CapsLock затрагивает только те позиции,
+ *     где caps отличается от base).
  * V8: маппируемость в Unicode — суррогаты/не-scalar — E_UNICODE
  *     (после TOML-парсинга практически недостижимо; покрыто юнит-тестом).
  *     Проверка английских имён (W_UNICODE_NONAME) — фаза 3 (нет таблицы).
  *
  * Инварианты генератора (docs/03, раздел 3): при отсутствии ошибок
  * spec содержит матрицы 5×10 нормализованных токенов, резолвимые
- * ссылки, известный capsIsShift, уникальные значения лигатур 2–4 кода.
+ * ссылки, уникальные значения лигатур 2–4 кода.
  */
 
 import { promises as fs } from "node:fs";
@@ -133,26 +138,12 @@ export function validateText(file: string, text: string): FileValidation {
   }
 
   // V6b: резолв @Trans (caps←base, caps_shift←base_shift).
-  // Выполняется до V7/V8, чтобы скалярные проверки и spec видели
+  // Выполняется до V8/spec, чтобы скалярные проверки и spec видели
   // уже раскрытые копии (включая лигатуры из base).
   resolveTransCells(matrices, file, errors);
 
-  // V7: когерентность caps.
-  const hasCaps = structured.layoutKeys.has("caps");
-  const hasCapsShift = structured.layoutKeys.has("caps_shift");
-  let capsIsShift = false;
-  if (hasCaps !== hasCapsShift) {
-    const present = hasCaps ? "caps" : "caps_shift";
-    errors.push(
-      errorDiag(
-        "E_CAPS_HALF",
-        file,
-        `[layout]: задан только ${present}, без пары; нужны оба слоя (caps, caps_shift) или ни одного`,
-      ),
-    );
-  } else if (!hasCaps) {
-    capsIsShift = true;
-  }
+  // V7: зарезервирована (caps/caps_shift обязательны через V2).
+  // Отдельной проверки пары больше нет.
 
   // V8: скалярная валидность всех кодпоинтов.
   errors.push(...checkUnicodeScalars(matrices, ligMap, file));
@@ -190,10 +181,9 @@ export function validateText(file: string, text: string): FileValidation {
       baseShift: getMatrix("base_shift"),
       altgr: getMatrix("altgr"),
       altgrShift: getMatrix("altgr_shift"),
-      caps: capsIsShift ? null : getMatrix("caps"),
-      capsShift: capsIsShift ? null : getMatrix("caps_shift"),
+      caps: getMatrix("caps"),
+      capsShift: getMatrix("caps_shift"),
     },
-    capsIsShift,
     usedLigatures: new Map(
       [...usedLigatures].map((name) => [name, ligMap.get(name) as number[]]),
     ),

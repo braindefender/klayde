@@ -52,7 +52,7 @@ const LAYOUT_KEYS = new Set([
   "caps",
   "caps_shift",
 ]);
-const REQUIRED_LAYOUT_KEYS = ["base", "base_shift", "altgr", "altgr_shift"] as const;
+const REQUIRED_LAYOUT_KEYS = ["base", "base_shift", "altgr", "altgr_shift", "caps", "caps_shift"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -36,7 +36,6 @@ export type ValidationErrorCode =
   | "E_CELL_LENGTH"
   | "E_CELL_CONTROL"
   | "E_CELL_AT"
-  | "E_CAPS_HALF"
   | "E_UNICODE"
   | "E_MSKLC_DUP_NAME";
 

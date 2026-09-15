@@ -200,12 +200,14 @@ describe("структура LAYOUT (без эталона)", () => {
     expect(ligRows.length).toBe(2);
   });
 
-  test("caps=shift: расширения english — swap (shift, base)", async () => {
+  test("явные caps english: буква Q (SC 10) — Cap 1 без расширения", async () => {
     const spec = await loadSpec("tests/fixtures/golden-english.toml");
     const { buildLayoutBlock } = await import("../process/generators/windows/klcLayout.ts");
     const { dataRows } = buildLayoutBlock(spec);
     const qi = dataRows.findIndex((r) => r.startsWith("10\t"));
-    expect(dataRows[qi + 1]).toMatch(/^-1\t-1\t0\tQ\tq\t\t\/\//);
+    expect(dataRows[qi]).toMatch(/^10\tQ\t\t1\tq\tQ\t/);
+    // Следующая строка — уже SC 11 (W), а не SGCap-расширение.
+    expect(dataRows[qi + 1]).toMatch(/^11\tW\t\t1\t/);
   });
 
   test("G_CAPS_LIGATURE: лигатура в caps — честная ошибка", async () => {
@@ -220,7 +222,7 @@ describe("структура LAYOUT (без эталона)", () => {
       layers: {
         ...spec.layers,
         // r2c1 (SC 10, SGCap): лигатура в caps обязана падать.
-        caps: (spec.layers.caps as NonNullable<typeof spec.layers.caps>).map((row, ri) =>
+        caps: spec.layers.caps.map((row, ri) =>
           row.map((c, ci) => (ri === 1 && ci === 0 ? { ...lig } : c)),
         ),
       },

@@ -44,3 +44,19 @@ altgr_shift = '''
 Μ        @None    ¢        @None    Β        Η        Ъ        …        {        }
 @Nbsp    •        —        ±        ;        :        ¦        @None    ¦        ,
 '''
+
+caps = '''
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+Й        Ц        У        К        Е        Н        Г        Ш        З        Х
+Ф        Ы        В        А        П        Р        О        Л        Д        Ж
+Я        Ч        С        М        И        Т        Ь        Б        Ю        Э
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+'''
+
+caps_shift = '''
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+Й        Ц        У        К        Е        Н        Г        Ш        З        Х
+Ф        Ы        В        А        П        Р        О        Л        Д        Ж
+Я        Ч        С        М        И        Т        Ь        Б        Ю        Э
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+'''

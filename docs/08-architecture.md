@@ -66,8 +66,7 @@ interface ValidatedSpec {
   msklc: { name: string; company: string; copyright: string; description: string };
   layers: { base: CellValue[][]; baseShift: CellValue[][];
             altgr: CellValue[][]; altgrShift: CellValue[][];
-            caps: CellValue[][] | null; capsShift: CellValue[][] | null };
-  capsIsShift: boolean;
+            caps: CellValue[][]; capsShift: CellValue[][] };
   usedLigatures: Map<string, number[]>;
 }
 
@@ -96,9 +95,11 @@ interface OsGenerator {
 ## 4. Решения, принятые в этом плане (сводка)
 
 1. Вход — только TOML; сетки — только `'''`; геометрия — только 5×10.
-2. `Cap` — по позиции (ряды 2–4 `SGCap`, ряды 1/5 `Cap=0`), не по символу.
-3. Нет `caps` — значит `caps=shift` (swap `shift`/`base` в расширениях).
-4. Лигатуры — только `@Имя` + `%%`/`LIGATURE`; встроенные `@None/@Space/@Nbsp`.
+2. `Cap`-зона — по позиции (ряды 2–4 + r5c8 `SGCap`, ряды 1/5 `Cap=0`),
+   а эффект CapsLock — по содержимому явных `caps`/`caps_shift`
+   (`@Trans` — без эффекта; системный CapsLock затрагивает только буквы,
+   поэтому неявный SGCap для пунктуации/цифр запрещён — слои обязательны).
+3. Лигатуры — только `@Имя` + `%%`/`LIGATURE`; встроенные `@None/@Space/@Nbsp`, `@Trans` только в caps.
 5. `Ctrl`-колонка и `SPACE.col7=-1` — константы таблицы позиций.
 6. Выход Windows — UTF-16LE+BOM+CRLF, имя `<main.name>.klc` в `<out>/windows/`.
 7. macOS/Linux — заглушки за тем же интерфейсом; `--os` принимает их уже сейчас.
@@ -131,8 +132,9 @@ interface OsGenerator {
 единственный ручной шаг; всё остальное автоматизировано. Критерий:
 MSKLC открывает файлы без ошибок, golden-дифф в пределах допусков.
 
-**Фаза 5 — лигатуры и caps.** Параметризованные тесты: схемы без `caps`
-дают swap-расширения; `@FatArr/@ThinArr` дают `%%` + `K 3/4`; неиспользуемая
+**Фаза 5 — лигатуры и caps.** Параметризованные тесты: english-схемы
+дают `Cap 1` для букв и `Cap 0` для не-букв без расширений;
+merged/russian — `SGCap`-расширения из явных слоёв; `@FatArr/@ThinArr` дают `%%` + `K 3/4`; неиспользуемая
 лигатура — `W_LIG_UNUSED` и отсутствие в выводе;
 
 **Фаза 6 — полировка.** `--out`, `--verbose`, атомарная запись,
@@ -153,7 +155,7 @@ MSKLC открывает файлы без ошибок, golden-дифф в пр
 - Golden-тесты: побайтовое сравнение (после нормализации CRLF) с тремя
   эталонами; расхождения вне допусков — падение.
 - Ручной acceptance: открыть каждый `.klc` в MSKLC, убедиться в отсутствии
-  ошибок, визуально сверить `caps=shift` (для english/russian) и лигатуры.
+  ошибок, визуально сверить caps (буквы — `Cap 1`/`SGCap`, не-буквы — `Cap 0`) и лигатуры.
 
 ## 7. Риски и mitigations
 

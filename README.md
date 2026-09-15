@@ -54,13 +54,3 @@ bun run start -- --layout="layouts/a.toml" --layout="layouts/b.toml" --out="buil
 bun test           # все тесты (валидаторы, таблицы, golden-дифф с эталонами)
 bun x tsc --noEmit # проверка типов
 ```
-
-Golden-эталоны лежат в `tests/golden/` (копии `.klc` из `universal-layout`).
-Известные допуски диффа зафиксированы в `tests/klc.test.ts`
-(`LANGUAGENAMES`, `COPYRIGHT`, KBD inverted-файлов, дрейф «сетка новее эталона»).
-
-## Ручной acceptance
-
-Единственный ручной шаг: открыть каждый `.klc` из `build/windows/` в MSKLC,
-убедиться в отсутствии ошибок, визуально сверить `caps=shift`
-(для english/russian) и лигатуры (`=>`/`->` на клавише K).

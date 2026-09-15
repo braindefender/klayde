@@ -25,8 +25,7 @@
 | `caps`        | расширение `SGCap`, колонка `caps`                   | ???                         | уровень 1         | Group2              |
 | `caps_shift`  | расширение `SGCap`, колонка `caps_shift`             | ???                         | уровень 2         | Group2              |
 
-Если слоёв `caps` нет (`capsIsShift`) — действует `caps=shift`:
-для каждой `SGCap`-клавиши расширение пишется как `caps = shift`, `caps_shift = base_shift`.
+Слои `caps`/`caps_shift` обязательны. Прозрачность (`caps==base`, обычно через `@Trans` для не-букв) даёт `Cap 0` без расширения (CapsLock без эффекта — системный CapsLock затрагивает только буквы); swap (`caps==shift`) — `Cap 1`; иначе — `SGCap` с расширением из явных слоёв.
 
 ## 3. Единая позиционная таблица (50 ячеек)
 
@@ -134,7 +133,7 @@
   с `&`/`[`/`]` в примерах). Ряды 1 и 5 всегда `Cap=0`, кроме r5c8 (`SG`,
   но пропускается — см. выше). `Cap=1` (системные раскладки без AltGr)
   генератор не использует: наши раскладки всегда имеют AltGr, поэтому
-  в буквенной зоне всегда `SGCap`.
+  в буквенной зоне даёт `Cap 1` для букв (swap) и `Cap 0` для не-букв (`@Trans`); неявный SGCap для всей зоны запрещён (системный CapsLock — только буквы), поэтому слои `caps`/`caps_shift` обязательны.
 - **Кодирование колонки** (`encodeCell`): `None → -1`, `Space → 0020`,
   `Nbsp → 00a0`, `Char → строчный 4-hex`, `LigatureRef → %%` (раскрытие уходит
   в `LIGATURE`). Символы вне BMP (`codePoint > 0xFFFF`) генератор отвергает
@@ -151,8 +150,7 @@
   `key <CAPS> { [ ISO_Next_Group ] };` — всегда (стандартного CapsLock/
   Lock-модификатора в наших раскладках нет осознанно).
   Group1: уровни 1–4 из `base`-слоёв. Group2: `caps→1, caps_shift→2`
-  (или swap `shift→1, base→2` при `capsIsShift` — точная семантика
-  `caps=shift` из MSKLC, сверено с `.klc`-эталонами english/russian),
+  (swap букв `caps==shift` повторяет нативный caps=shift MSKLC; не-буквы — `@Trans` → копия base),
   уровни 3–4 дублируют Group1 (иначе после CapsLock XKB забыл бы AltGr-слои;
   паритет с Windows, где CapsLock AltGr-состояния не затрагивает).
   `name[Group1] = "<main.name>"`, `name[Group2] = "<main.name> (caps)"`.
@@ -226,7 +224,7 @@
 
 ## 8. Откуда что взято (карта источников)
 
-- TOML-слои, ячейки, `@`-токены, `capsIsShift`: `docs/02` (§6–7).
+- TOML-слои, ячейки, `@`-токены, обязательные `caps`/`caps_shift` и `@Trans`: `docs/02` (§6–7).
 - KLC-шапка, `SHIFTSTATE`/`Mod#`, колонки, `Cap`, Ctrl-колонка, `LIGATURE`,
   подвал: `docs/04` (§2–6); алгоритм сборки: `docs/06`.
 - Windows-таблица `(r,c) → (SC, VK, Cap, Ctrl)`: `docs/05` (§2); порядок строк

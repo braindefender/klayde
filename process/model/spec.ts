@@ -29,9 +29,8 @@ export interface ValidatedSpec {
     baseShift: CellValue[][];
     altgr: CellValue[][];
     altgrShift: CellValue[][];
-    caps: CellValue[][] | null;
-    capsShift: CellValue[][] | null;
+    caps: CellValue[][];
+    capsShift: CellValue[][];
   };
-  capsIsShift: boolean;
   usedLigatures: Map<string, number[]>;
 }

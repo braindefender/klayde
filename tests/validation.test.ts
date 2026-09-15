@@ -54,24 +54,26 @@ describe("эталонные схемы fixtures/", () => {
     });
   }
 
-  test("capsIsShift: merged — false, остальные golden — true", async () => {
+  test("caps обязательны: все golden содержат caps/caps_shift 5×10", async () => {
     for (const file of files.filter((f) => f.includes("golden-"))) {
       const r = await validateFile(file);
-      const wantCaps = file.includes("merged");
-      expect(r.spec?.capsIsShift).toBe(!wantCaps);
-      expect(r.spec?.layers.caps !== null).toBe(wantCaps);
+      expect(r.spec?.layers.caps.length).toBe(5);
+      expect(r.spec?.layers.capsShift.length).toBe(5);
+      for (const matrix of [r.spec?.layers.caps, r.spec?.layers.capsShift]) {
+        expect(matrix?.length).toBe(5);
+        for (const row of matrix ?? []) expect(row.length).toBe(10);
+      }
     }
   });
 });
 
 describe("@Trans: резолв в base/base_shift", () => {
-  test("valid-trans: capsIsShift false, @Trans раскрыт в копии", async () => {
+  test("valid-trans: @Trans раскрыт в копии", async () => {
     const r = await validateFixture("valid-trans.toml");
     expect(errorCodes(r)).toEqual([]);
     expect(warnCodes(r)).toEqual([]);
     const spec = r.spec;
     expect(spec).not.toBeNull();
-    expect(spec?.capsIsShift).toBe(false);
     // r2c2 caps=@Trans → копия base 'l'; caps_shift=@Trans → копия base_shift 'l'.
     expect(spec?.layers.caps?.[1]?.[1]).toEqual({ kind: "char", codePoint: 0x6c });
     expect(spec?.layers.capsShift?.[1]?.[1]).toEqual({ kind: "char", codePoint: 0x6c });
@@ -92,7 +94,7 @@ describe("@Trans: резолв в base/base_shift", () => {
 });
 
 describe("valid-mini: структура spec", () => {
-  test("матрицы 5×10, лигатуры, capsIsShift", async () => {
+  test("матрицы 5×10, лигатуры, обязательные caps", async () => {
     const r = await validateFixture("valid-mini.toml");
     expect(errorCodes(r)).toEqual([]);
     expect(warnCodes(r)).toEqual([]);
@@ -103,12 +105,12 @@ describe("valid-mini: структура spec", () => {
       spec?.layers.baseShift,
       spec?.layers.altgr,
       spec?.layers.altgrShift,
+      spec?.layers.caps,
+      spec?.layers.capsShift,
     ]) {
       expect(matrix?.length).toBe(5);
       for (const row of matrix ?? []) expect(row.length).toBe(10);
     }
-    expect(spec?.capsIsShift).toBe(true);
-    expect(spec?.layers.caps).toBeNull();
     expect([...(spec?.usedLigatures.keys() ?? [])]).toEqual(["FatArr"]);
     expect(spec?.usedLigatures.get("FatArr")).toEqual([0x3d, 0x3e]);
     // Точечные токены: R5 = Space, None, Nbsp, Ligature.
@@ -146,7 +148,9 @@ describe("фикстуры: ровно ожидаемые коды", () => {
     ["e_cell_control.toml", ["E_CELL_CONTROL"]],
     ["e_cell_at.toml", ["E_CELL_AT"]],
     ["e_trans_layer.toml", ["E_CELL_AT"]],
-    ["e_caps_half.toml", ["E_CAPS_HALF"]],
+    // Половинчатый caps без пары — отсутствие обязательного слоя (V2),
+    // отдельный код E_CAPS_HALF упразднён: caps/caps_shift обязательны.
+    ["e_caps_half.toml", ["E_SCHEMA_UNKNOWN_KEY"]],
     // Открывающий и закрывающий """ — по ошибке на строку (docs/03, V0).
     ["e_quotes_triple_double.toml", ["E_QUOTES_TRIPLE_DOUBLE", "E_QUOTES_TRIPLE_DOUBLE"]],
   ];
