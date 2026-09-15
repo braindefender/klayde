@@ -1,8 +1,11 @@
 /**
  * Тесты фазы 4: генератор KLC (docs/06; план docs/08 фаза 4).
  *
- * Golden-тесты: сгенерированные .klc для 6 схем диффаются с эталонами
- * universal-layout (tests/golden/). Допуски — только зафиксированные:
+ * Golden-тесты опираются только на tests/fixtures + tests/golden
+ * (каталог layouts/ — user-space и здесь не используется): входы —
+ * замороженные копии схем `tests/fixtures/golden-*.toml`, эталоны —
+ * tests/golden/*.klc. Сгенерированные .klc диффаются с эталонами.
+ * Допуски — только зафиксированные:
  * - LANGUAGENAMES = DESCRIPTIONS (решение из docs/02, раздел 4);
  * - COPYRIGHT без пробела после © (TOML `©2026` vs эталон `© 2026`);
  * - KBD inverted-файлов (эталон переставляет суффикс: ULOENI→ULOIEN,
@@ -24,12 +27,12 @@ import { KlcBuildError } from "../process/generators/windows/klcLayout.ts";
 import type { ValidatedSpec } from "../process/model/spec.ts";
 
 const PAIRS: [string, string][] = [
-  ["layouts/universal-layout-ortho-english.toml", "tests/golden/Universal Layout Ortho English.klc"],
-  ["layouts/universal-layout-ortho-english-inverted.toml", "tests/golden/Universal Layout Ortho English Inverted.klc"],
-  ["layouts/universal-layout-ortho-merged.toml", "tests/golden/Universal Layout Ortho Merged.klc"],
-  ["layouts/universal-layout-ortho-merged-inverted.toml", "tests/golden/Universal Layout Ortho Merged Inverted.klc"],
-  ["layouts/universal-layout-ortho-russian.toml", "tests/golden/Universal Layout Ortho Russian.klc"],
-  ["layouts/universal-layout-ortho-russian-inverted.toml", "tests/golden/Universal Layout Ortho Russian Inverted.klc"],
+  ["tests/fixtures/golden-english.toml", "tests/golden/Universal Layout Ortho English.klc"],
+  ["tests/fixtures/golden-english-inverted.toml", "tests/golden/Universal Layout Ortho English Inverted.klc"],
+  ["tests/fixtures/golden-merged.toml", "tests/golden/Universal Layout Ortho Merged.klc"],
+  ["tests/fixtures/golden-merged-inverted.toml", "tests/golden/Universal Layout Ortho Merged Inverted.klc"],
+  ["tests/fixtures/golden-russian.toml", "tests/golden/Universal Layout Ortho Russian.klc"],
+  ["tests/fixtures/golden-russian-inverted.toml", "tests/golden/Universal Layout Ortho Russian Inverted.klc"],
 ];
 
 async function loadSpec(layout: string): Promise<ValidatedSpec> {
@@ -162,7 +165,7 @@ describe("golden: 6 схем побайтово в пределах допуск
 
 describe("klcWriter: байты и атомарная запись", () => {
   test("BOM + CRLF + имя <main.name>.klc в <out>/windows/", async () => {
-    const spec = await loadSpec("layouts/universal-layout-ortho-merged.toml");
+    const spec = await loadSpec("tests/fixtures/golden-merged.toml");
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-klc-"));
     const outFile = await writeKlcFile(spec, tmp);
     expect(outFile).toBe(path.join(tmp, "windows", "Universal Layout Ortho Merged.klc"));
@@ -187,7 +190,7 @@ describe("klcWriter: байты и атомарная запись", () => {
 
 describe("структура LAYOUT (без эталона)", () => {
   test("merged: 49 основных + 30 расширений, SC 28 пропущен", async () => {
-    const spec = await loadSpec("layouts/universal-layout-ortho-merged.toml");
+    const spec = await loadSpec("tests/fixtures/golden-merged.toml");
     const { dataRows, ligRows } = (await import("../process/generators/windows/klcLayout.ts")).buildLayoutBlock(spec);
     const mains = dataRows.filter((r) => !r.startsWith("-1"));
     const exts = dataRows.filter((r) => r.startsWith("-1"));
@@ -198,7 +201,7 @@ describe("структура LAYOUT (без эталона)", () => {
   });
 
   test("caps=shift: расширения english — swap (shift, base)", async () => {
-    const spec = await loadSpec("layouts/universal-layout-ortho-english.toml");
+    const spec = await loadSpec("tests/fixtures/golden-english.toml");
     const { buildLayoutBlock } = await import("../process/generators/windows/klcLayout.ts");
     const { dataRows } = buildLayoutBlock(spec);
     const qi = dataRows.findIndex((r) => r.startsWith("10\t"));
@@ -206,7 +209,7 @@ describe("структура LAYOUT (без эталона)", () => {
   });
 
   test("G_CAPS_LIGATURE: лигатура в caps — честная ошибка", async () => {
-    const spec = await loadSpec("layouts/universal-layout-ortho-merged.toml");
+    const spec = await loadSpec("tests/fixtures/golden-merged.toml");
     const lig: { kind: "ligature"; name: string; codePoints: number[] } = {
       kind: "ligature",
       name: "FatArr",

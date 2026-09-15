@@ -95,11 +95,18 @@ describe("hexOf/commentFor", () => {
   });
 });
 
-describe("data/unicode.json: минимум для всех символов layouts/", () => {
+describe("data/unicode.json: минимум для всех символов фикстур", () => {
   test("каждый символ сеток и значений лигатур имеет имя", async () => {
+    // Только tests/fixtures (каталог layouts/ — user-space и здесь
+    // не используется); e_*-фикстуры исключены — они намеренно содержат
+    // битый контент (не-скаляры, мультисимволы) для тестов ошибок.
     const need = new Set<string>(["0020", "0040", "00a0"]);
-    for (const f of (await fs.readdir("layouts")).filter((f) => f.endsWith(".toml"))) {
-      const v = Bun.TOML.parse(await fs.readFile(`layouts/${f}`, "utf8")) as {
+    const fixtures = (await fs.readdir("tests/fixtures"))
+      .filter((f) => f.endsWith(".toml") && !f.startsWith("e_"))
+      .sort();
+    expect(fixtures.length).toBeGreaterThan(0);
+    for (const f of fixtures) {
+      const v = Bun.TOML.parse(await fs.readFile(`tests/fixtures/${f}`, "utf8")) as {
         ligatures: Record<string, string>;
         layout: Record<string, string>;
       };

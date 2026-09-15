@@ -1,8 +1,12 @@
 /**
  * Тесты фазы 2: валидация V0–V9 (docs/03, план docs/08 фаза 2).
  *
- * - Все 6 файлов из layouts/ валидны без ошибок и предупреждений.
- * - Сломанные копии фикстур дают ровно ожидаемые коды с координатами.
+ * Тесты опираются только на tests/fixtures (каталог layouts/ — user-space
+ * и здесь не используется):
+ * - замороженные эталонные схемы `golden-*.toml` (входы golden-тестов,
+ *   побайтово соответствуют tests/golden/*.klc) валидны без ошибок
+ *   и предупреждений;
+ * - сломанные копии фикстур дают ровно ожидаемые коды с координатами;
  * - E_UNICODE/E_IO/V9-предупреждения — прямыми юнит-тестами
  *   (через TOML-текст недостижимы: парсер отклоняет суррогаты
  *   и сырые контроли, а V9 требует пару файлов).
@@ -30,14 +34,16 @@ function warnCodes(result: { warnings: { code: ValidationCode }[] }): Validation
   return result.warnings.map((w) => w.code).sort();
 }
 
-describe("реальные схемы layouts/", () => {
+describe("эталонные схемы fixtures/", () => {
   const files = [
-    "layouts/universal-layout-ortho-english.toml",
-    "layouts/universal-layout-ortho-english-inverted.toml",
-    "layouts/universal-layout-ortho-merged.toml",
-    "layouts/universal-layout-ortho-merged-inverted.toml",
-    "layouts/universal-layout-ortho-russian.toml",
-    "layouts/universal-layout-ortho-russian-inverted.toml",
+    "tests/fixtures/golden-english.toml",
+    "tests/fixtures/golden-english-inverted.toml",
+    "tests/fixtures/golden-merged.toml",
+    "tests/fixtures/golden-merged-inverted.toml",
+    "tests/fixtures/golden-russian.toml",
+    "tests/fixtures/golden-russian-inverted.toml",
+    "tests/fixtures/valid-mini.toml",
+    "tests/fixtures/valid-trans.toml",
   ];
   for (const file of files) {
     test(`${file}: без ошибок и предупреждений`, async () => {
@@ -48,13 +54,40 @@ describe("реальные схемы layouts/", () => {
     });
   }
 
-  test("capsIsShift: merged — false, остальные — true", async () => {
-    for (const file of files) {
+  test("capsIsShift: merged — false, остальные golden — true", async () => {
+    for (const file of files.filter((f) => f.includes("golden-"))) {
       const r = await validateFile(file);
       const wantCaps = file.includes("merged");
       expect(r.spec?.capsIsShift).toBe(!wantCaps);
       expect(r.spec?.layers.caps !== null).toBe(wantCaps);
     }
+  });
+});
+
+describe("@Trans: резолв в base/base_shift", () => {
+  test("valid-trans: capsIsShift false, @Trans раскрыт в копии", async () => {
+    const r = await validateFixture("valid-trans.toml");
+    expect(errorCodes(r)).toEqual([]);
+    expect(warnCodes(r)).toEqual([]);
+    const spec = r.spec;
+    expect(spec).not.toBeNull();
+    expect(spec?.capsIsShift).toBe(false);
+    // r2c2 caps=@Trans → копия base 'l'; caps_shift=@Trans → копия base_shift 'l'.
+    expect(spec?.layers.caps?.[1]?.[1]).toEqual({ kind: "char", codePoint: 0x6c });
+    expect(spec?.layers.capsShift?.[1]?.[1]).toEqual({ kind: "char", codePoint: 0x6c });
+    // r2c10 caps=@Trans поверх лигатуры base → копия раскрытия FatArr.
+    expect(spec?.layers.caps?.[1]?.[9]).toEqual({
+      kind: "ligature",
+      name: "FatArr",
+      codePoints: [0x3d, 0x3e],
+    });
+    // Копия глубокая: мутация caps не трогает base.
+    (spec?.layers.caps?.[1]?.[9] as { codePoints: number[] }).codePoints.push(0x21);
+    expect(spec?.layers.base[1]?.[9]).toEqual({
+      kind: "ligature",
+      name: "FatArr",
+      codePoints: [0x3d, 0x3e],
+    });
   });
 });
 
@@ -112,6 +145,7 @@ describe("фикстуры: ровно ожидаемые коды", () => {
     ["e_cell_length.toml", ["E_CELL_LENGTH"]],
     ["e_cell_control.toml", ["E_CELL_CONTROL"]],
     ["e_cell_at.toml", ["E_CELL_AT"]],
+    ["e_trans_layer.toml", ["E_CELL_AT"]],
     ["e_caps_half.toml", ["E_CAPS_HALF"]],
     // Открывающий и закрывающий """ — по ошибке на строку (docs/03, V0).
     ["e_quotes_triple_double.toml", ["E_QUOTES_TRIPLE_DOUBLE", "E_QUOTES_TRIPLE_DOUBLE"]],

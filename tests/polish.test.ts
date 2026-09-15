@@ -30,11 +30,29 @@ async function capture(fn: () => Promise<number>): Promise<{
   }
 }
 
+/**
+ * Прогоны CLI опираются только на tests/fixtures (каталог layouts/ —
+ * user-space и здесь не используется): все схемы передаются явными
+ * `--layout`, дефолтное сканирование каталога не задействовано.
+ */
+const GOLDEN_LAYOUTS = [
+  "tests/fixtures/golden-english.toml",
+  "tests/fixtures/golden-english-inverted.toml",
+  "tests/fixtures/golden-merged.toml",
+  "tests/fixtures/golden-merged-inverted.toml",
+  "tests/fixtures/golden-russian.toml",
+  "tests/fixtures/golden-russian-inverted.toml",
+];
+
+function layoutArgs(): string[] {
+  return GOLDEN_LAYOUTS.map((f) => `--layout=${f}`);
+}
+
 describe("--out: артефакты ложатся в заданный корень", () => {
   test("6 схем → <out>/windows/*.klc, выход 0", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-out-"));
     const { code, out } = await capture(() =>
-      runCli(["bun", "index.ts", "--", "--os=windows", `--out=${tmp}`]),
+      runCli(["bun", "index.ts", "--", "--os=windows", `--out=${tmp}`, ...layoutArgs()]),
     );
     expect(code).toBe(0);
     const files = (await fs.readdir(path.join(tmp, "windows"))).sort();
@@ -48,7 +66,7 @@ describe("сводка", () => {
   test("успех: done с числом входов/артефактов/пропусков", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-sum-"));
     const { code, out } = await capture(() =>
-      runCli(["bun", "index.ts", "--", "--os=windows", `--out=${tmp}`]),
+      runCli(["bun", "index.ts", "--", "--os=windows", `--out=${tmp}`, ...layoutArgs()]),
     );
     expect(code).toBe(0);
     expect(out[out.length - 1]).toBe("done: входов 6, артефактов 6, пропусков 0");
@@ -109,11 +127,11 @@ describe("атомарная запись", () => {
   });
 });
 
-describe("регресс: полный прогон по умолчанию", () => {
+describe("регресс: полный прогон по всем ОС", () => {
   test("все ОС: windows пишет, macos/linux пропускают, выход 0", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-all-"));
     const { code, out } = await capture(() =>
-      runCli(["bun", "index.ts", "--", `--out=${tmp}`]),
+      runCli(["bun", "index.ts", "--", `--out=${tmp}`, ...layoutArgs()]),
     );
     expect(code).toBe(0);
     expect((await fs.readdir(path.join(tmp, "windows"))).length).toBe(6);

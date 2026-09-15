@@ -152,12 +152,17 @@ describe("discoverInputs", () => {
     }
   });
 
-  test("дефолт layouts/: рекурсивно все схемы отсортированы", async () => {
+  test("дефолт: пустой --layout резолвится в скан каталога по умолчанию", async () => {
+    // Без привязки к содержимому user-space каталога layouts/:
+    // дефолт обязан совпадать с явным указанием DEFAULT_LAYOUTS_DIR,
+    // выдавать отсортированный список только *.toml.
+    const { DEFAULT_LAYOUTS_DIR } = await import("../process/layouts/discover.ts");
     const found = await discoverInputs([]);
-    expect(found.length).toBe(12);
+    const explicit = await discoverInputs([DEFAULT_LAYOUTS_DIR]);
+    expect(found).toEqual(explicit);
     expect(found).toEqual([...found].sort());
-    expect(found.some((f) => f.includes(path.join("universal-layout", "ortho")))).toBe(true);
-    expect(found.some((f) => f.includes(path.join("universal-layout", "standard")))).toBe(true);
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.every((f) => f.toLowerCase().endsWith(".toml"))).toBe(true);
   });
 });
 

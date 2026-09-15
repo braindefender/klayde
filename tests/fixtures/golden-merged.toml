@@ -1,0 +1,62 @@
+[main]
+name = "Universal Layout Ortho Merged"
+short_name = "ULOM"
+
+[msklc]
+name = "ULOM"
+company = "braindefender"
+copyright = "©2026 braindefender"
+description = "Universal Layout Ortho Merged"
+
+[ligatures]
+FatArr = "=>"
+ThinArr = "->"
+
+[layout]
+base = '''
+1        2        3        4        5        6        7        8        9        0
+q        w        e        r        t        y        u        i        o        p
+a        s        d        f        g        h        j        k        l        ~
+z        x        c        v        b        n        m        &        [        ]
+@Space   '        -        =        ,        .        /        @None    /        .
+'''
+
+base_shift = '''
+!        @        #        $        %        ^        ?        *        (        )
+Q        W        E        R        T        Y        U        I        O        P
+A        S        D        F        G        H        J        K        L        ≈
+Z        X        C        V        B        N        M        &        {        }
+@Space   "        _        +        ;        :        |        @None    |        ,
+'''
+
+altgr = '''
+¹        ²        ³        ⁴        ‰        ˆ        ¿        ∞        ‘        ’
+ψ        ω        €        ®        ё        ¥        λ        щ        <        >
+α        §        °        £        γ        ₽        ø        @FatArr  «        »
+μ        ×        ©        √        β        η        ъ        &        [        ]
+@Nbsp    `        –        ≠        ,        .        \        @None    \        .
+'''
+
+altgr_shift = '''
+¡        ½        ⅓        ¼        @None    @None    ⁈        @None    “        ”
+Ψ        Ω        @None    @None    Ё        @None    Λ        Щ        ≤        ≥
+Α        Σ        Δ        @None    Γ        @None    Ø        @ThinArr ←        →
+Μ        @None    ¢        @None    Β        Η        Ъ        …        {        }
+@Nbsp    •        —        ±        ;        :        ¦        @None    ¦        ,
+'''
+
+caps = '''
+1        2        3        4        5        6        7        8        9        0
+й        ц        у        к        е        н        г        ш        з        х
+ф        ы        в        а        п        р        о        л        д        ж
+я        ч        с        м        и        т        ь        б        ю        э
+@Space   '        -        =        ,        .        /        @None    /        .
+'''
+
+caps_shift = '''
+!        @        #        $        %        ^        ?        *        (        )
+Й        Ц        У        К        Е        Н        Г        Ш        З        Х
+Ф        Ы        В        А        П        Р        О        Л        Д        Ж
+Я        Ч        С        М        И        Т        Ь        Б        Ю        Э
+@Space   "        _        +        ;        :        |        @None    |        ,
+'''

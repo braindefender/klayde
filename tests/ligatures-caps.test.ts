@@ -1,9 +1,13 @@
 /**
  * Тесты фазы 5: лигатуры и caps (план docs/08 фаза 5).
  *
- * Параметризованные проверки поверх поведения фаз 2/4:
+ * Тесты опираются только на tests/fixtures (каталог layouts/ — user-space
+ * и здесь не используется). Параметризованные проверки поверх поведения
+ * фаз 2/4:
  * - схемы без caps: все расширения — swap (shift, base);
  * - схемы с caps: все расширения — значения caps/caps_shift из TOML;
+ * - @Trans: прозрачность → Cap 0, swap → Cap 1, лигатура через @Trans
+ *   переиспользует Mod# из base без G_CAPS_LIGATURE;
  * - лигатуры в base/base_shift/altgr_shift (Mod# 0/1/4), N мест — N строк;
  * - 3- и 4-символьные раскрытия; имя лигатуры не попадает в .klc;
  * - неиспользуемая лигатура — предупреждение и отсутствие в выводе.
@@ -60,10 +64,10 @@ async function tomlLayout(file: string): Promise<Record<string, string>> {
 
 describe("caps=shift: все расширения — swap (shift, base)", () => {
   const files = [
-    "layouts/universal-layout-ortho-english.toml",
-    "layouts/universal-layout-ortho-english-inverted.toml",
-    "layouts/universal-layout-ortho-russian.toml",
-    "layouts/universal-layout-ortho-russian-inverted.toml",
+    "tests/fixtures/golden-english.toml",
+    "tests/fixtures/golden-english-inverted.toml",
+    "tests/fixtures/golden-russian.toml",
+    "tests/fixtures/golden-russian-inverted.toml",
   ];
   for (const file of files) {
     test(`${file}: 30 swap-расширений`, async () => {
@@ -89,8 +93,8 @@ describe("caps=shift: все расширения — swap (shift, base)", () =>
 
 describe("явные caps: все расширения — значения слоёв", () => {
   const files = [
-    "layouts/universal-layout-ortho-merged.toml",
-    "layouts/universal-layout-ortho-merged-inverted.toml",
+    "tests/fixtures/golden-merged.toml",
+    "tests/fixtures/golden-merged-inverted.toml",
   ];
   for (const file of files) {
     test(`${file}: 30 расширений из caps/caps_shift`, async () => {
@@ -167,12 +171,49 @@ describe("многосимвольные раскрытия", () => {
   });
 });
 
+describe("@Trans: Cap 0/1 без расширений", () => {
+  test("valid-trans: swap → Cap 1, прозрачность → Cap 0, distinct → SGCap", async () => {
+    const spec = await loadSpec("tests/fixtures/valid-trans.toml");
+    expect(spec.capsIsShift).toBe(false);
+    const { dataRows, ligRows } = buildLayoutBlock(spec);
+    const mains = dataRows.filter((r) => !r.startsWith("-1"));
+    const exts = dataRows.filter((r) => r.startsWith("-1"));
+    // SC 29 пуст везде (как SC 28 в эталонах) → 49 основных; единственное
+    // расширение — distinct-пара r2c3 (SC 12, X/x).
+    expect(mains.length).toBe(49);
+    expect(exts.length).toBe(1);
+    const bySc = new Map(mains.map((r) => [parseRow(r).cols[0] as string, parseRow(r)]));
+    // r2c1 (SC 10): caps==shift → Cap 1 без расширения.
+    expect(bySc.get("10")?.cols[2]).toBe("1");
+    // r2c2 (SC 11): @Trans → Cap 0 без расширения.
+    expect(bySc.get("11")?.cols[2]).toBe("0");
+    // r2c3 (SC 12): distinct → SGCap с расширением [X, x].
+    expect(bySc.get("12")?.cols[2]).toBe("SGCap");
+    const qi = dataRows.findIndex((r) => r.startsWith("12\t"));
+    expect(parseRow(dataRows[qi + 1] as string).cols.slice(0, 5)).toEqual([
+      "-1",
+      "-1",
+      "0",
+      "X",
+      "x",
+    ]);
+    // r2c10 (SC 19, VK P): лигатура base через @Trans → Cap 0, %% в c0,
+    // раскрытие — единственная строка P/Mod#0 (без дубля из caps).
+    expect(bySc.get("19")?.cols[2]).toBe("0");
+    expect(bySc.get("19")?.cols[3]).toBe("%%");
+    expect(ligRows.filter((r) => r.startsWith("P\t")).map((r) => parseRow(r).cols.slice(0, 2))).toEqual([
+      ["P", "0"],
+    ]);
+  });
+});
+
 describe("имена лигатур не попадают в .klc", () => {
   test("6 схем + фикстуры: ни FatArr/ThinArr/Tri/Quad/Unused", async () => {
     const files = [
-      "layouts/universal-layout-ortho-english.toml",
-      "layouts/universal-layout-ortho-merged.toml",
-      "layouts/universal-layout-ortho-russian.toml",
+      "tests/fixtures/golden-english.toml",
+      "tests/fixtures/golden-merged.toml",
+      "tests/fixtures/golden-russian.toml",
+      "tests/fixtures/valid-trans.toml",
       "tests/fixtures/lig-base.toml",
       "tests/fixtures/lig-multi.toml",
       "tests/fixtures/w_lig_unused.toml",

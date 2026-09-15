@@ -1,0 +1,47 @@
+[main]
+name = "Universal Layout Ortho Russian"
+short_name = "ULORU"
+
+[msklc]
+name = "ULORU"
+company = "braindefender"
+copyright = "©2026 braindefender"
+description = "Universal Layout Ortho Russian"
+
+[ligatures]
+FatArr = "=>"
+ThinArr = "->"
+
+[layout]
+base = '''
+1        2        3        4        5        6        7        8        9        0
+й        ц        у        к        е        н        г        ш        з        х
+ф        ы        в        а        п        р        о        л        д        ж
+я        ч        с        м        и        т        ь        б        ю        э
+@Space   '        -        =        ,        .        /        @None    /        .
+'''
+
+base_shift = '''
+!        @        #        $        %        ^        ?        *        (        )
+Й        Ц        У        К        Е        Н        Г        Ш        З        Х
+Ф        Ы        В        А        П        Р        О        Л        Д        Ж
+Я        Ч        С        М        И        Т        Ь        Б        Ю        Э
+@Space   "        _        +        ;        :        |        @None    |        ,
+'''
+
+
+altgr = '''
+¹        ²        ³        ⁴        ‰        ˆ        ¿        ∞        ‘        ’
+ψ        ω        €        ®        ё        ¥        λ        щ        <        >
+α        §        °        £        γ        ₽        ø        @FatArr  «        »
+μ        ×        ©        √        β        η        ъ        &        [        ]
+@Nbsp    `        –        ≠        ,        .        \        @None    \        .
+'''
+
+altgr_shift = '''
+¡        ½        ⅓        ¼        @None    @None    ⁈        @None    “        ”
+Ψ        Ω        @None    @None    Ё        @None    Λ        Щ        ≤        ≥
+Α        Σ        Δ        @None    Γ        @None    Ø        @ThinArr ←        →
+Μ        @None    ¢        @None    Β        Η        Ъ        …        {        }
+@Nbsp    •        —        ±        ;        :        ¦        @None    ¦        ,
+'''
