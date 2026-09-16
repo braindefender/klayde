@@ -76,7 +76,9 @@ export type ValidationWarningCode =
   | "W_DUP_SHORT"
   | "W_DUP_NAME"
   // TODO (фаза 3): Doris/`unicode.json` — имя для KLC-комментария.
-  | "W_UNICODE_NONAME";
+  | "W_UNICODE_NONAME"
+  // Linux-генератор (docs/09, раздел 5): лигатура сведена к пустой.
+  | "W_LINUX_LIGATURE_FALLBACK";
 
 export type ValidationCode = ValidationErrorCode | ValidationWarningCode;
 

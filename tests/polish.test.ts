@@ -84,14 +84,14 @@ describe("сводка", () => {
     expect(out.filter((l) => l.startsWith("ok:")).length).toBe(6);
   });
 
-  test("только linux: успех с нулём артефактов, сводка говорит явно", async () => {
-    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-skip-"));
+  test("только linux: 6 symbols-файлов, выход 0", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-lin-"));
     const { code, out } = await capture(() =>
       runCli(["bun", "index.ts", "--", "--os=linux", `--out=${tmp}`, ...layoutArgs()]),
     );
     expect(code).toBe(0);
-    expect(out[out.length - 1]).toContain("артефактов создано 0");
-    expect(out.some((l) => l.startsWith("skip:"))).toBe(true);
+    expect((await fs.readdir(path.join(tmp, "linux"))).length).toBe(6);
+    expect(out.filter((l) => l.startsWith("ok:")).length).toBe(6);
   });
 
   test("ошибка валидации: сводки нет, диагностика — в stderr", async () => {
@@ -140,7 +140,7 @@ describe("атомарная запись", () => {
 });
 
 describe("регресс: полный прогон по всем ОС", () => {
-  test("все ОС: windows и macos пишут, linux пропускает, выход 0", async () => {
+  test("все ОС: windows, macos и linux пишут, выход 0", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-all-"));
     const { code, out } = await capture(() =>
       runCli(["bun", "index.ts", "--", `--out=${tmp}`, ...layoutArgs()]),
@@ -148,8 +148,9 @@ describe("регресс: полный прогон по всем ОС", () => {
     expect(code).toBe(0);
     expect((await fs.readdir(path.join(tmp, "windows"))).length).toBe(6);
     expect((await fs.readdir(path.join(tmp, "macos"))).length).toBe(6);
-    expect(out.filter((l) => l.startsWith("ok:")).length).toBe(12);
-    expect(out.filter((l) => l.startsWith("skip:")).length).toBe(6);
-    expect(out[out.length - 1]).toBe("done: входов 6, артефактов 12, пропусков 6");
+    expect((await fs.readdir(path.join(tmp, "linux"))).length).toBe(6);
+    expect(out.filter((l) => l.startsWith("ok:")).length).toBe(18);
+    expect(out.filter((l) => l.startsWith("skip:")).length).toBe(0);
+    expect(out[out.length - 1]).toBe("done: входов 6, артефактов 18, пропусков 0");
   });
 });
