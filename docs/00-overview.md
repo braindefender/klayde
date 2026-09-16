@@ -82,6 +82,8 @@ Windows-генератор дополнительно использует дв�
 - `docs/06-generation-windows.md` — алгоритм генерации `.klc`.
 - `docs/07-unicode-ligatures.md` — символы, коды, имена, лигатуры.
 - `docs/08-architecture.md` — модули, структуры данных, план внедрения.
+- `docs/09-linux-xkb.md` — генерация раскладок для Linux (XKB): исследование и план.
+- `docs/10-macos-keylayout.md` — генерация раскладок для macOS (`.keylayout`): исследование и план.
 
 ## 5. Что намеренно не делаем
 

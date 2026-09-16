@@ -195,7 +195,7 @@ describe("registry", () => {
       expect(getGenerator(osId).os).toBe(osId);
     }
   });
-  test("windows реализован, macos/linux — заглушки skip (фаза 4)", async () => {
+  test("windows и macos реализованы, linux — заглушка skip", async () => {
     const { validateFile } = await import("../process/validation/validate.ts");
     const r = await validateFile("tests/fixtures/valid-mini.toml");
     if (!r.spec) throw new Error("valid-mini обязан валидироваться");
@@ -203,10 +203,11 @@ describe("registry", () => {
     const win = await getGenerator("windows").generate(r.spec, tmp);
     expect(win.status).toBe("ok");
     expect(win.outFile?.endsWith(".klc")).toBe(true);
-    for (const osId of ["macos", "linux"] as const) {
-      const res = await getGenerator(osId).generate(r.spec, tmp);
-      expect(res.status).toBe("skip");
-    }
+    const mac = await getGenerator("macos").generate(r.spec, tmp);
+    expect(mac.status).toBe("ok");
+    expect(mac.outFile?.endsWith(".keylayout")).toBe(true);
+    const res = await getGenerator("linux").generate(r.spec, tmp);
+    expect(res.status).toBe("skip");
   });
 });
 

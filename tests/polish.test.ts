@@ -72,10 +72,22 @@ describe("сводка", () => {
     expect(out[out.length - 1]).toBe("done: входов 6, артефактов 6, пропусков 0");
   });
 
-  test("только macos: успех с нулём артефактов, сводка говорит явно", async () => {
+  test("только macos: 6 .keylayout, выход 0", async () => {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-mac-"));
+    const { code, out } = await capture(() =>
+      runCli(["bun", "index.ts", "--", "--os=macos", `--out=${tmp}`, ...layoutArgs()]),
+    );
+    expect(code).toBe(0);
+    const files = (await fs.readdir(path.join(tmp, "macos"))).sort();
+    expect(files.length).toBe(6);
+    expect(files.every((f) => f.endsWith(".keylayout"))).toBe(true);
+    expect(out.filter((l) => l.startsWith("ok:")).length).toBe(6);
+  });
+
+  test("только linux: успех с нулём артефактов, сводка говорит явно", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-skip-"));
     const { code, out } = await capture(() =>
-      runCli(["bun", "index.ts", "--", "--os=macos", `--out=${tmp}`]),
+      runCli(["bun", "index.ts", "--", "--os=linux", `--out=${tmp}`, ...layoutArgs()]),
     );
     expect(code).toBe(0);
     expect(out[out.length - 1]).toContain("артефактов создано 0");
@@ -128,15 +140,16 @@ describe("атомарная запись", () => {
 });
 
 describe("регресс: полный прогон по всем ОС", () => {
-  test("все ОС: windows пишет, macos/linux пропускают, выход 0", async () => {
+  test("все ОС: windows и macos пишут, linux пропускает, выход 0", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-all-"));
     const { code, out } = await capture(() =>
       runCli(["bun", "index.ts", "--", `--out=${tmp}`, ...layoutArgs()]),
     );
     expect(code).toBe(0);
     expect((await fs.readdir(path.join(tmp, "windows"))).length).toBe(6);
-    expect(out.filter((l) => l.startsWith("ok:")).length).toBe(6);
-    expect(out.filter((l) => l.startsWith("skip:")).length).toBe(12);
-    expect(out[out.length - 1]).toBe("done: входов 6, артефактов 6, пропусков 12");
+    expect((await fs.readdir(path.join(tmp, "macos"))).length).toBe(6);
+    expect(out.filter((l) => l.startsWith("ok:")).length).toBe(12);
+    expect(out.filter((l) => l.startsWith("skip:")).length).toBe(6);
+    expect(out[out.length - 1]).toBe("done: входов 6, артефактов 12, пропусков 6");
   });
 });
