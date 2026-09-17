@@ -1,6 +1,7 @@
 [main]
 name = "Fixture Valid Mini"
 short_name = "TOOLONG99"
+caps_is_shift = true
 
 [msklc]
 name = "FIXV"

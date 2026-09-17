@@ -4,10 +4,11 @@
  * Тесты опираются только на tests/fixtures (каталог layouts/ — user-space
  * и здесь не используется). Параметризованные проверки поверх поведения
  * фаз 2/4:
- * - english-схемы: буквы (caps==shift) — Cap 1, не-буквы
- *   (caps=@Trans) — Cap 0, SGCap-расширений нет (CapsLock по системе
- *   затрагивает только буквы);
- * - merged/russian-схемы: все расширения — значения caps/caps_shift из TOML;
+ * - english/russian-схемы (caps_is_shift=true): буквы (caps==shift) —
+ *   Cap 1, не-буквы (caps=@Trans) — Cap 0, SGCap-расширений нет
+ *   (CapsLock по системе затрагивает только буквы);
+ * - merged-схемы (caps_is_shift=false): все расширения — значения
+ *   caps/caps_shift из TOML;
  * - @Trans: прозрачность → Cap 0, swap → Cap 1, лигатура через @Trans
  *   переиспользует Mod# из base без G_CAPS_LIGATURE;
  * - лигатуры в base/base_shift/altgr_shift (Mod# 0/1/4), N мест — N строк;
@@ -64,14 +65,19 @@ async function tomlLayout(file: string): Promise<Record<string, string>> {
   return (Bun.TOML.parse(text) as { layout: Record<string, string> }).layout;
 }
 
-describe("явные caps english: буквы — Cap 1, не-буквы — Cap 0, расширений нет", () => {
-  const files = [
-    "tests/fixtures/golden-english.toml",
-    "tests/fixtures/golden-english-inverted.toml",
+describe("явные caps single-language: буквы — Cap 1, не-буквы — Cap 0, расширений нет", () => {
+  // [файл, Cap 1, Cap 0]: english — 26 букв + 4 символа в SGCap-зоне,
+  // russian — все 30 клавиш зоны буквенные.
+  const files: [string, number, number][] = [
+    ["tests/fixtures/golden-english.toml", 26, 23],
+    ["tests/fixtures/golden-english-inverted.toml", 26, 23],
+    ["tests/fixtures/golden-russian.toml", 30, 19],
+    ["tests/fixtures/golden-russian-inverted.toml", 30, 19],
   ];
-  for (const file of files) {
-    test(`${file}: 0 расширений, 26×Cap 1 + 23×Cap 0`, async () => {
+  for (const [file, wantCap1, wantCap0] of files) {
+    test(`${file}: 0 расширений, ${wantCap1}×Cap 1 + ${wantCap0}×Cap 0`, async () => {
       const spec = await loadSpec(file);
+      expect(spec.main.capsIsShift).toBe(true);
       expect(spec.layers.caps.length).toBe(5);
       const { dataRows } = buildLayoutBlock(spec);
       const mains = dataRows.filter((r) => !r.startsWith("-1"));
@@ -79,28 +85,34 @@ describe("явные caps english: буквы — Cap 1, не-буквы — Cap
       expect(mains.length).toBe(49);
       expect(exts).toEqual([]);
       const caps = mains.map((r) => parseRow(r).cols[2]);
-      expect(caps.filter((c) => c === "1").length).toBe(26);
-      expect(caps.filter((c) => c === "0").length).toBe(23);
+      expect(caps.filter((c) => c === "1").length).toBe(wantCap1);
+      expect(caps.filter((c) => c === "0").length).toBe(wantCap0);
       expect(caps.some((c) => c === "SGCap")).toBe(false);
-      // Точечно: буква Q (SC 10) — swap caps==shift → Cap 1;
-      // символ r3c10 (SC 27, caps=@Trans) — прозрачность → Cap 0.
+      // Точечно: буква SC 10 (Q/й) — swap caps==shift → Cap 1.
       const bySc = new Map(mains.map((r) => [parseRow(r).cols[0] as string, parseRow(r)]));
       expect(bySc.get("10")?.cols[2]).toBe("1");
-      expect(bySc.get("27")?.cols[2]).toBe("0");
     });
   }
+
+  test("english: символ r3c10 (SC 27, caps=@Trans) — Cap 0", async () => {
+    const spec = await loadSpec("tests/fixtures/golden-english.toml");
+    const { dataRows } = buildLayoutBlock(spec);
+    const mains = dataRows.filter((r) => !r.startsWith("-1"));
+    const bySc = new Map(mains.map((r) => [parseRow(r).cols[0] as string, parseRow(r)]));
+    // В russian на этой позиции буква ж — там Cap 1 (см. счётчики выше).
+    expect(bySc.get("27")?.cols[2]).toBe("0");
+  });
 });
 
-describe("явные caps: все расширения — значения слоёв", () => {
+describe("явные caps merged (caps_is_shift=false): все расширения — значения слоёв", () => {
   const files = [
     "tests/fixtures/golden-merged.toml",
     "tests/fixtures/golden-merged-inverted.toml",
-    "tests/fixtures/golden-russian.toml",
-    "tests/fixtures/golden-russian-inverted.toml",
   ];
   for (const file of files) {
     test(`${file}: 30 расширений из caps/caps_shift`, async () => {
       const spec = await loadSpec(file);
+      expect(spec.main.capsIsShift).toBe(false);
       const layout = await tomlLayout(file);
       const { LAYOUT_SC_ORDER, positionBySc } = await import(
         "../process/generators/windows/positions.ts"
@@ -175,6 +187,8 @@ describe("многосимвольные раскрытия", () => {
 describe("@Trans: Cap 0/1 без расширений", () => {
   test("valid-trans: swap → Cap 1, прозрачность → Cap 0, distinct → SGCap", async () => {
     const spec = await loadSpec("tests/fixtures/valid-trans.toml");
+    // distinct-пара X/x даёт SGCap — такой контент допустим только при false.
+    expect(spec.main.capsIsShift).toBe(false);
     const { dataRows, ligRows } = buildLayoutBlock(spec);
     const mains = dataRows.filter((r) => !r.startsWith("-1"));
     const exts = dataRows.filter((r) => r.startsWith("-1"));

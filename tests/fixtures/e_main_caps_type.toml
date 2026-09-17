@@ -1,17 +1,16 @@
 [main]
-name = "Fixture Valid Mini"
-short_name = "FIXV"
-caps_is_shift = true
+name = "Fixture Caps Type"
+short_name = "FIXC"
+caps_is_shift = "yes"
 
 [msklc]
-name = "FIXV"
+name = "FIXC"
 company = "klayde-test"
 copyright = "©2026 klayde-test"
 description = "Fixture Valid Mini"
 
 [ligatures]
 FatArr = "=>"
-None = "=>"
 
 [layout]
 base = '''
@@ -47,17 +46,17 @@ u        v        w        x        y        z        1        2        3       
 '''
 
 caps = '''
-a        a        a        a        a        a        a        a        a        a
-a        a        a        a        a        a        a        a        a        a
-a        a        a        a        a        a        a        a        a        a
-a        a        a        a        a        a        a        a        a        a
-a        a        a        a        a        a        a        a        a        a
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
 '''
 
 caps_shift = '''
-A        A        A        A        A        A        A        A        A        A
-A        A        A        A        A        A        A        A        A        A
-A        A        A        A        A        A        A        A        A        A
-A        A        A        A        A        A        A        A        A        A
-A        A        A        A        A        A        A        A        A        A
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
 '''

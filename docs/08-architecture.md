@@ -66,7 +66,7 @@ type CellValue =
 
 interface ValidatedSpec {
   file: string;
-  main: { name: string; shortName: string };
+  main: { name: string; shortName: string; capsIsShift: boolean };
   msklc: { name: string; company: string; copyright: string; description: string };
   layers: { base: CellValue[][]; baseShift: CellValue[][];
             altgr: CellValue[][]; altgrShift: CellValue[][];
@@ -103,6 +103,11 @@ interface OsGenerator {
    а эффект CapsLock — по содержимому явных `caps`/`caps_shift`
    (`@Trans` — без эффекта; системный CapsLock затрагивает только буквы,
    поэтому неявный SGCap для пунктуации/цифр запрещён — слои обязательны).
+   Режим выбирает `[main].caps_is_shift` (см.
+   `docs/toml-schema.md`, по умолчанию `true`): `true` — стандарт (caps связаны с base;
+   Windows — только `Cap 0`/`Cap 1`, иначе `G_CAPS_MODE`; Linux — одна
+   группа без `ISO_Next_Group`), `false` — независимые caps (Windows —
+   `SGCap`-расширения; Linux — две группы с `ISO_Next_Group`).
 3. Лигатуры — только `@Имя` + `%%`/`LIGATURE`; встроенные `@None/@Space/@Nbsp`, `@Trans` только в caps.
 5. `Ctrl`-колонка и `SPACE.col7=-1` — константы таблицы позиций.
 6. Выход Windows — UTF-16LE+BOM+CRLF, имя `<main.name>.klc` в `<out>/windows/`.

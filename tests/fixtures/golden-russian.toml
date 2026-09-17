@@ -1,6 +1,7 @@
 [main]
 name = "Universal Layout Ortho Russian"
 short_name = "ULORU"
+caps_is_shift = true
 
 [msklc]
 name = "ULORU"
@@ -56,8 +57,8 @@ caps = '''
 
 caps_shift = '''
 @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
-Й        Ц        У        К        Е        Н        Г        Ш        З        Х
-Ф        Ы        В        А        П        Р        О        Л        Д        Ж
-Я        Ч        С        М        И        Т        Ь        Б        Ю        Э
+й        ц        у        к        е        н        г        ш        з        х
+ф        ы        в        а        п        р        о        л        д        ж
+я        ч        с        м        и        т        ь        б        ю        э
 @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
 '''

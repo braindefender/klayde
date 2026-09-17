@@ -29,8 +29,8 @@ export const LAYOUT_KEY_SET: ReadonlySet<string> = new Set(LAYOUT_KEYS);
 export const GRID_ROWS = 5;
 export const GRID_COLS = 10;
 
-/** Короткий идентификатор: латиница/цифры без пробелов. */
-export const SHORT_ID_RE = /^[A-Za-z0-9]+$/;
+/** Короткий идентификатор: латиница/цифры, дефис только внутри (MSKLC принимает дефис, напр. EN-US). */
+export const SHORT_ID_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,6}[A-Za-z0-9])?$/;
 export const SHORT_ID_MIN_LENGTH = 1;
 export const SHORT_ID_MAX_LENGTH = 8;
 
@@ -82,7 +82,7 @@ export const REQUIRED_SECTIONS = ["main", "msklc", "layout"] as const;
 export const OPTIONAL_SECTIONS = ["ligatures"] as const;
 
 /** Допустимые ключи [main] / [msklc]. */
-export const MAIN_KEYS = new Set(["name", "short_name"]);
+export const MAIN_KEYS = new Set(["name", "short_name", "caps_is_shift"]);
 export const MSKLC_KEYS = new Set([
   "name",
   "company",

@@ -1,7 +1,13 @@
 /**
  * Тело `xkb_symbols`: строки `key` для групп Group1/Group2 (docs/09, §4–5, §7).
  *
- * - Group1 = [base, base_shift, altgr, altgr_shift];
+ * Режим выбирает `[main].caps_is_shift` (docs/toml-schema.md):
+ * - true (стандарт): одна группа Group1 = [base, base_shift, altgr,
+ *   altgr_shift]; CapsLock отрабатывает штатным типом
+ *   FOUR_LEVEL_ALPHABETIC (ср. системные дампы docs/xkb-en_US.xkb,
+ *   docs/xkb-ru_RU.xkb: одна группа, без ISO_Next_Group);
+ * - false (виртуальное переключение): две группы,
+ *   Group1 = [base, base_shift, altgr, altgr_shift],
  *   Group2 = [caps, caps_shift, altgr, altgr_shift] (дубли 3–4, как в
  *   `ulo_combo`: иначе переключение группы убило бы AltGr);
  * - лигатура → fallback: уровень опускается + `W_LINUX_LIGATURE_FALLBACK`
@@ -98,8 +104,11 @@ export function buildXkbKeys(
   table: XkbKeysymTable = DEFAULT_XKB_KEYSYM_TABLE,
 ): XkbBuildResult {
   const warnings: Diagnostic[] = [];
+  const singleGroup = spec.main.capsIsShift;
   // Каждый слой кодируется один раз: предупреждения fallback'а —
   // ровно по одному на ячейку сетки (дубли Group2 их не повторяют).
+  // В одногрупповом режиме слои caps не кодируются вообще
+  // (в вывод не попадают, дублировать предупреждения нечему).
   const enc = (layer: CellValue[][], layerName: string): (string | null)[][] =>
     layer.map((row, r) =>
       row.map((cell, c) =>
@@ -115,23 +124,31 @@ export function buildXkbKeys(
   const baseShift = enc(spec.layers.baseShift, "base_shift");
   const altgr = enc(spec.layers.altgr, "altgr");
   const altgrShift = enc(spec.layers.altgrShift, "altgr_shift");
-  const caps = enc(spec.layers.caps, "caps");
-  const capsShift = enc(spec.layers.capsShift, "caps_shift");
+  const caps = singleGroup ? null : enc(spec.layers.caps, "caps");
+  const capsShift = singleGroup ? null : enc(spec.layers.capsShift, "caps_shift");
 
   const keyLines = XKB_POSITIONS.map((pos) => {
     const at = (matrix: (string | null)[][]): string | null =>
       (matrix[pos.row - 1] as (string | null)[])[pos.col - 1] as string | null;
+    const t = typeName(pos.row);
+    if (singleGroup) {
+      const l1 = packLevels([at(base), at(baseShift), at(altgr), at(altgrShift)]);
+      return `key <${pos.code}> { type[Group1]="${t}", symbols[Group1] = [ ${l1.join(", ")} ] };`;
+    }
     const g1 = [at(base), at(baseShift), at(altgr), at(altgrShift)];
-    const g2 = [at(caps), at(capsShift), at(altgr), at(altgrShift)];
+    const g2 = [at(caps as (string | null)[][]), at(capsShift as (string | null)[][]), at(altgr), at(altgrShift)];
     const l1 = packLevels(g1);
     const l2 = packLevels(g2);
-    const t = typeName(pos.row);
     return `key <${pos.code}> { type[Group1]="${t}", type[Group2]="${t}", symbols[Group1] = [ ${l1.join(", ")} ], symbols[Group2] = [ ${l2.join(", ")} ] };`;
   });
 
-  // Defense in depth: ровно 50 строк, обе группы непусты.
+  // Defense in depth: ровно 50 строк; в одногрупповом режиме —
+  // ни Group2, ни ISO_Next_Group в строках клавиш.
   if (keyLines.length !== 50) {
     throw new XkbBuildError("G_INTERNAL", `ожидалось 50 строк key, получено ${keyLines.length}`);
+  }
+  if (singleGroup && keyLines.some((l) => l.includes("Group2"))) {
+    throw new XkbBuildError("G_INTERNAL", "одногрупповой режим (caps_is_shift=true), но строка key содержит Group2");
   }
   return { keyLines, warnings };
 }

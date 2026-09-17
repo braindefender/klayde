@@ -15,7 +15,7 @@ export type CellValue =
 
 export interface ValidatedSpec {
   file: string;
-  main: { name: string; shortName: string };
+  main: { name: string; shortName: string; capsIsShift: boolean };
   msklc: {
     name: string;
     company: string;

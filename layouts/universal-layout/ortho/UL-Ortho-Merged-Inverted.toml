@@ -1,6 +1,7 @@
 [main]
 name = "Universal Layout Ortho Merged Inverted"
 short_name = "ULOMI"
+caps_is_shift = false
 
 [msklc]
 name = "ULOMI"

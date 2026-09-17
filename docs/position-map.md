@@ -25,7 +25,9 @@
 | `caps`        | расширение `SGCap`, колонка `caps`                   | ???                         | уровень 1         | Group2              |
 | `caps_shift`  | расширение `SGCap`, колонка `caps_shift`             | ???                         | уровень 2         | Group2              |
 
-Слои `caps`/`caps_shift` обязательны. Прозрачность (`caps==base`, обычно через `@Trans` для не-букв) даёт `Cap 0` без расширения (CapsLock без эффекта — системный CapsLock затрагивает только буквы); swap (`caps==shift`) — `Cap 1`; иначе — `SGCap` с расширением из явных слоёв.
+Слои `caps`/`caps_shift` обязательны. Прозрачность (`caps==base`, обычно через `@Trans` для не-букв) даёт `Cap 0` без расширения (CapsLock без эффекта — системный CapsLock затрагивает только буквы); swap (`caps==shift`) — `Cap 1`; иначе — `SGCap` с расширением из явных слоёв (только при `caps_is_shift=false`; при `true` — ошибка `G_CAPS_MODE`).
+
+Режим `caps_is_shift` (`[main]`, см. `docs/toml-schema.md`): `true` — стандарт (Linux: только Group1, без `ISO_Next_Group`), `false` — независимые caps (Linux: Group1 + Group2 с `ISO_Next_Group`; колонка Linux XKB-группы в таблице выше — для режима `false`).
 
 ## 3. Единая позиционная таблица (50 ячеек)
 
@@ -146,14 +148,17 @@
   altgr_shift→4`. `@None` в хвосте опускается (`[period, greater]`);
   `@None` в середине — `NoSymbol` на своём уровне (`[a, A, NoSymbol, X]`,
   уровни сдвигать нельзя); полностью пустая клавиша — `[ NoSymbol ]` (§5).
-- **Группы** (приём из `ulo_combo`): base → Group1, caps → Group2.
-  `key <CAPS> { [ ISO_Next_Group ] };` — всегда (стандартного CapsLock/
+- **Группы** выбирает `[main].caps_is_shift` (подробности — `docs/09`, §4):
+  при `true` только Group1 из `base`-слоёв (без `key <CAPS>`), при `false`
+  (приём из `ulo_combo`): base → Group1, caps → Group2,
+  `key <CAPS> { [ ISO_Next_Group ] };` (стандартного CapsLock/
   Lock-модификатора в наших раскладках нет осознанно).
-  Group1: уровни 1–4 из `base`-слоёв. Group2: `caps→1, caps_shift→2`
-  (swap букв `caps==shift` повторяет нативный caps=shift MSKLC; не-буквы — `@Trans` → копия base),
+  Group1: уровни 1–4 из `base`-слоёв. Group2 (только `false`): `caps→1,
+  caps_shift→2` (независимые caps; не-буквы — `@Trans` → копия base),
   уровни 3–4 дублируют Group1 (иначе после CapsLock XKB забыл бы AltGr-слои;
   паритет с Windows, где CapsLock AltGr-состояния не затрагивает).
-  `name[Group1] = "<main.name>"`, `name[Group2] = "<main.name> (caps)"`.
+  `name[Group1] = "<main.name>"`, при `false` плюс
+  `name[Group2] = "<main.name> (caps)"`.
 - **Типы клавиш:** ряды 2–4 — `type[Group1]="FOUR_LEVEL_ALPHABETIC"`
   (CapsLock-поведение уровней 1–2 по умолчанию), ряды 1/5 —
   `type[Group1]="FOUR_LEVEL"`; обе группы четырёхуровневые, правило едино.

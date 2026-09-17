@@ -195,6 +195,8 @@ export function validateText(file: string, text: string): FileValidation {
     main: {
       name: structured.main["name"] as string,
       shortName: structured.main["short_name"] as string,
+      // undefined возможен только при ошибке типа V2 — тогда spec null выше.
+      capsIsShift: structured.capsIsShift ?? true,
     },
     msklc: {
       name: structured.msklc["name"] as string,
@@ -243,7 +245,7 @@ function validateScalars(
       errorDiag(
         "E_MAIN_SHORT_NAME",
         file,
-        `[main].short_name ${JSON.stringify(main["short_name"])}: ожидалась латиница/цифры без пробелов, 1–8 символов`,
+        `[main].short_name ${JSON.stringify(main["short_name"])}: ожидались латиница/цифры/дефис без пробелов, 1–8 символов (дефис только внутри)`,
       ),
     );
   }
@@ -252,7 +254,7 @@ function validateScalars(
       errorDiag(
         "E_MSKLC_NAME",
         file,
-        `[msklc].name ${JSON.stringify(msklc["name"])}: ожидалась латиница/цифры без пробелов, 1–8 символов`,
+        `[msklc].name ${JSON.stringify(msklc["name"])}: ожидались латиница/цифры/дефис без пробелов, 1–8 символов (дефис только внутри)`,
       ),
     );
   }

@@ -49,6 +49,12 @@ xkb_symbols "ULOM" {
 };
 ```
 
+Пример выше — режим `caps_is_shift=false` (merged, две группы).
+При `caps_is_shift=true` (english/russian, стандарт) групп одна:
+строки `name[Group2]`, `key <CAPS>` и все `type[Group2]`/`symbols[Group2]`
+отсутствуют (ср. системные дампы `docs/xkb-en_US.xkb`,
+`docs/xkb-ru_RU.xkb`). Подробности — раздел 4.
+
 Факты, на которые опирается генератор:
 
 1. Строка клавиши: `key <КОД> { [ l1, l2, l3, l4 ] };` — от 1 до 4 keysym
@@ -135,12 +141,20 @@ XKB-коды идут по физическим рядам staggered-клави�
 `xkbcomp -w 10` на реализации (раздел 8). Клавиша, пустая во всех
 слоях, — `[ NoSymbol ]` (раздел 3, защита от наследования из `include`).
 
-Группы: base → Group1, caps → Group2 (приём из `ulo_combo`, раздел 11).
+Группы выбирает `[main].caps_is_shift` (см. `docs/toml-schema.md`):
 
-XKB-группа — полный набор уровней одной «подраскладки». Существующая
-реализация (`ulo_combo`, раздел 11) показывает приём: CapsLock
-переключает группы (`key <CAPS> { [ ISO_Next_Group ] };`), поэтому
-обязательные слои `caps`/`caps_shift` маппятся во вторую группу, а не игнорируются:
+- `true` (стандарт, english/russian): **одна группа**
+  Group1 = `base`→1, `base_shift`→2, `altgr`→3, `altgr_shift`→4.
+  `name[Group2]` и `key <CAPS>` не пишутся, `ISO_Next_Group`
+  в выводе отсутствует. CapsLock отрабатывает штатным типом
+  `FOUR_LEVEL_ALPHABETIC` (ряды 2–4) — как в системных дампах
+  `docs/xkb-en_US.xkb` и `docs/xkb-ru_RU.xkb`: там тоже одна группа
+  без переключателя. Слои `caps`/`caps_shift` в вывод не попадают
+  (их содержимое — swap/`@Trans`, т.е. та же информация, что в base).
+- `false` (виртуальное переключение, merged): **две группы**
+  (приём из `ulo_combo`, раздел 11 — CapsLock переключает группы
+  через `key <CAPS> { [ ISO_Next_Group ] };`, поэтому обязательные
+  слои `caps`/`caps_shift` маппятся во вторую группу, а не игнорируются):
 
 - Group1: `base`→1, `base_shift`→2, `altgr`→3, `altgr_shift`→4;
 - Group2: `caps`→1, `caps_shift`→2, `altgr`→3, `altgr_shift`→4 —
@@ -151,14 +165,15 @@ XKB-группа — полный набор уровней одной «под�
   знают только 2 состояния), и дублирование воспроизводит именно это;
 - Group2 = явные caps-уровни 1–2 (`caps`→1, `caps_shift`→2;
   `@Trans`-копии base/base_shift попадают сюда как есть —
-  резолв делает валидатор),
-  сверено с `.klc`-эталонами english/russian;
-- `key <CAPS> { [ ISO_Next_Group ] };` — всегда; стандартного CapsLock
-  (Lock-модификатор) в наших раскладках нет осознанно: Lock никем
-  не посылается. Типы ключей Group2 — те же, что Group1
+  резолв делает валидатор), уровни 3–4 — дубли Group1;
+- `key <CAPS> { [ ISO_Next_Group ] };` — только при `false`;
+  стандартного CapsLock (Lock-модификатор) в наших раскладках нет
+  осознанно: Lock никем не посылается (при `true` его роль играет
+  `FOUR_LEVEL_ALPHABETIC`). Типы ключей Group2 — те же, что Group1
   (ряды 2–4 `FOUR_LEVEL_ALPHABETIC`, ряд 1/5 `FOUR_LEVEL`):
   обе группы четырёхуровневые, правило едино;
-- `name[Group1] = "<main.name>"`, `name[Group2] = "<main.name> (caps)"`.
+- `name[Group1] = "<main.name>"`, при `false` плюс
+  `name[Group2] = "<main.name> (caps)"`.
 
 Проверка соответствия: Group2 merged (`й`/`Й` на AD01…) совпадает
 с Group2 `ulo_combo` — те же ячейки caps-слоёв по валидатору.
@@ -251,11 +266,14 @@ class LinuxXkbGenerator implements OsGenerator {
   запись атомарная (временный файл + rename, как `klcWriter.ts`).
 - `W_LINUX_LIGATURE_FALLBACK` — используемая лигатура в выводе, закодирована
   как пустая (раздел 5); предупреждение на ячейку, в stderr, генерация успешна.
+  При `caps_is_shift=true` слои caps не кодируются вообще (в вывод
+  не попадают), поэтому их лигатурные копии `@Trans` дублей не дают.
 - Defense in depth перед записью: ровно 50 строк `key` (все позиции,
   пустые — `[ NoSymbol ]`, середина — `NoSymbol` на своём уровне, хвост
-  обрезан); Group2 каждой клавиши = `[caps, caps_shift, altgr, altgr_shift]`
-  после fallback'а; ни одного лигатурного артефакта; все keysym
-  из таблицы/алгоритма (никаких `null`).
+  обрезан); при `false` Group2 каждой клавиши = `[caps, caps_shift,
+  altgr, altgr_shift]` после fallback'а; при `true` ни одна строка
+  не содержит `Group2`/`ISO_Next_Group`; ни одного лигатурного артефакта;
+  все keysym из таблицы/алгоритма (никаких `null`).
 
 ## 8. Установка и тестирование
 
@@ -267,9 +285,11 @@ class LinuxXkbGenerator implements OsGenerator {
   сверяется с зафиксированным образцом (образцы пишутся нами и ревьюятся
   построчно; существующие файлы upstream — только референс, не golden,
   см. раздел 11);
-- Group2 всех схем — `[caps, caps_shift]` + дубли altgr/altgr_shift
-  из Group1; `key <CAPS>` присутствует; групп ровно 2, AltGr работает
-  в обеих;
+- Group1 всех схем — `[base, base_shift]` + дубли altgr/altgr_shift
+  из Group1; при `false` Group2 — `[caps, caps_shift]` + те же дубли,
+  `key <CAPS>` присутствует, групп ровно 2; при `true` группа ровно 1,
+  `key <CAPS>` и `ISO_Next_Group` отсутствуют; AltGr работает
+  в обеих (при `false` — в обеих группах);
 - `W_LINUX_LIGATURE_FALLBACK` на всех 6 реальных схемах (по 2 на файл)
   при успешной генерации; отсутствие лигатурного мусора в выводе;
 - юнит-тесты таблицы привязки (50 записей, как `positions.test.ts`)
@@ -289,12 +309,13 @@ class LinuxXkbGenerator implements OsGenerator {
    (`xkb-5x10-v1`, 50 записей) + тест «50 записей» по образцу фазы 3.
 2. **`data/xkb-keysyms.json`** + `keysyms.ts` (`encodeKeysym`) +
    тест покрытия инвентаря `layouts/`.
-3. **`xkbLayout.ts`**: Group1 (уровни 1–4), Group2 (`[caps, caps_shift]`
-   + дубли 3–4), `key <CAPS>` = `ISO_Next_Group`, хвост `-1` опускается,
-   `key <CAPS>` = `ISO_Next_Group`, хвост `-1` опускается, середина `@None` —
-   `NoSymbol`, полностью пустые — `[ NoSymbol ]`, типы обеих групп
-   как Group1 (ряды 2–4 `FOUR_LEVEL_ALPHABETIC`, ряд 1/5 `FOUR_LEVEL`),
-   fallback лигатур + `W_LINUX_LIGATURE_FALLBACK`, ассёрты;
+3. **`xkbLayout.ts`**: Group1 (уровни 1–4); при `caps_is_shift=false`
+    Group2 (`[caps, caps_shift]` + дубли 3–4) и `key <CAPS>` =
+    `ISO_Next_Group`, при `true` — только Group1 без `key <CAPS>`,
+    хвост `-1` опускается, середина `@None` —
+    `NoSymbol`, полностью пустые — `[ NoSymbol ]`, типы обеих групп
+    как Group1 (ряды 2–4 `FOUR_LEVEL_ALPHABETIC`, ряд 1/5 `FOUR_LEVEL`),
+    fallback лигатур + `W_LINUX_LIGATURE_FALLBACK`, ассёрты;
 4. **`xkbWriter.ts`**: сборка, LF-переводы строк (XKB-файлы — LF),
    UTF-8 без BOM, атомарная запись в `<out>/linux/`.
 5. **`index.ts`**: `LinuxXkbGenerator`, подключение к реестру
@@ -306,11 +327,13 @@ class LinuxXkbGenerator implements OsGenerator {
 
 - Wayland vs X11: разные пути установки и выбор раскладки —
   mitigated: README фиксирует оба пути, генератор от них не зависит.
-- CapsLock переключает группы, а не лочит регистр: это осознанное
-  отличие от стандартного CapsLock — mitigated: задокументировано здесь
-  и в README-инструкции, сверяется ручным acceptance (набрать с Caps
-  и Caps+Shift по каждой буквенной клавише); LED и Shift+Caps-жесты
-  конкретных DE — пункт ручной проверки.
+- При `caps_is_shift=false` CapsLock переключает группы, а не лочит
+  регистр: это осознанное отличие от стандартного CapsLock — mitigated:
+  задокументировано здесь и в README-инструкции, сверяется ручным
+  acceptance (набрать с Caps и Caps+Shift по каждой буквенной клавише);
+  LED и Shift+Caps-жесты конкретных DE — пункт ручной проверки.
+  При `true` CapsLock штатный (`FOUR_LEVEL_ALPHABETIC`, как в системных
+  раскладках).
 - Keysym-имена без канонического имени (редкая типографика) —
   mitigated: детерминированный fallback `UXXXX`, принимаемый `xkbcomp`.
 - Лигатуры сводятся к пустым с громким предупреждением, пока нет

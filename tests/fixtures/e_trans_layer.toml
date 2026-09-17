@@ -1,6 +1,7 @@
 [main]
 name = "Fixture Trans Layer"
 short_name = "FIXV"
+caps_is_shift = true
 
 [msklc]
 name = "FIXV"

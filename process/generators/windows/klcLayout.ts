@@ -19,10 +19,12 @@
  *   (caps==base && caps_shift==base_shift) → Cap 0 без расширения
  *   (CapsLock без эффекта — для не-букв с @Trans), swap
  *   (caps==shift && caps_shift==base) → Cap 1 без расширения
- *   (нативный caps=shift MSKLC); иначе SGCap с расширением.
- *   Слои caps/caps_shift обязательны: системный CapsLock затрагивает
- *   только буквы, поэтому старые схемы без caps (SGCap для всех
- *   30 клавиш рядов 2–4) неверны для пунктуации/цифр;
+ *   (нативный caps=shift MSKLC); иначе SGCap с расширением —
+ *   только при caps_is_shift=false (независимые caps, виртуальное
+ *   переключение раскладки). При caps_is_shift=true независимый
+ *   контент запрещён: генератор падает с G_CAPS_MODE (системный
+ *   CapsLock затрагивает только буквы, слои обязаны быть связаны
+ *   с base — swap/@Trans).
  * - строка LIGATURE: `VK\\t\\tMod#\\tкоды\\t\\t// <имена через " + ">`;
  *   Mod#: s0→0, s1→1, s6→3, s7→4 (индекс в SHIFTSTATE, docs/04, раздел 3).
  */
@@ -184,7 +186,9 @@ export function buildLayoutBlock(
     // с @Trans, т.к. системный CapsLock затрагивает только буквы);
     // swap (caps==shift && caps_shift==base) → Cap 1
     // (нативный caps=shift MSKLC, см. caps_shift_test.klc: H с Cap 1),
-    // иначе SGCap с расширением.
+    // иначе SGCap с расширением — только при caps_is_shift=false.
+    // При caps_is_shift=true независимый контент — ошибка G_CAPS_MODE
+    // (слои обязаны быть связаны с base: swap/@Trans).
     // Лигатура в caps допустима только при Cap 0/1 (переиспользует
     // Mod# 0/1 из base); при SGCap — G_CAPS_LIGATURE, т.к. MSKLC не
     // предоставляет Mod# для caps-расширений.
@@ -210,6 +214,12 @@ export function buildLayoutBlock(
       } else {
         cap = "SGCap";
         capsPair = [c0, c1];
+      }
+      if (capsPair !== null && spec.main.capsIsShift) {
+        throw new KlcBuildError(
+          "G_CAPS_MODE",
+          `sc ${sc}: caps_is_shift=true требует caps, связанные с base (swap → Cap 1, @Trans → Cap 0), но ячейка независима — исправьте слои caps/caps_shift или укажите caps_is_shift=false`,
+        );
       }
       if (capsPair !== null) {
         for (const v of capsPair) {

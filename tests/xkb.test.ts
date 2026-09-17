@@ -40,14 +40,15 @@ async function loadSpec(file: string): Promise<ValidatedSpec> {
   return r.spec;
 }
 
-/** Разобрать строку key на группы уровней. */
+/** Разобрать строку key на группы уровней (Group2 отсутствует при caps_is_shift=true). */
 function parseKey(line: string): { code: string; g1: string[]; g2: string[] } {
   const m = line.match(
-    /^key <([A-Za-z0-9]+)> \{ (?:type\[Group1\]="[^"]+", type\[Group2\]="[^"]+", )?symbols\[Group1\] = \[ (.*) \], symbols\[Group2\] = \[ (.*) \] \};$/,
+    /^key <([A-Za-z0-9]+)> \{ type\[Group1\]="[^"]+", (?:type\[Group2\]="[^"]+", )?symbols\[Group1\] = \[ (.*?) \](?:, symbols\[Group2\] = \[ (.*?) \])? \};$/,
   );
   if (!m) throw new Error(`не key-строка: ${line}`);
-  const split = (s: string): string[] => (s === "" ? [] : s.split(", "));
-  return { code: m[1] as string, g1: split(m[2] as string), g2: split(m[3] as string) };
+  const split = (s: string | undefined): string[] =>
+    s === undefined || s === "" ? [] : s.split(", ");
+  return { code: m[1] as string, g1: split(m[2]), g2: split(m[3]) };
 }
 
 describe("encodeKeysym", () => {
@@ -223,7 +224,65 @@ describe("buildXkbKeys: группы и уровни", () => {
   });
 });
 
+describe("buildXkbKeys: caps_is_shift=true — одна группа", () => {
+  test("english: 50 строк без Group2, уровни из base-слоёв", async () => {
+    const spec = await loadSpec("tests/fixtures/golden-english.toml");
+    expect(spec.main.capsIsShift).toBe(true);
+    const { keyLines, warnings } = buildXkbKeys(spec);
+    expect(keyLines.length).toBe(50);
+    expect(keyLines.some((l) => l.includes("Group2"))).toBe(false);
+    const byCode = new Map(
+      keyLines.map((l) => {
+        const p = parseKey(l);
+        return [p.code, p] as const;
+      }),
+    );
+    // AD01: q/Q + греческий AltGr — одна группа.
+    expect(byCode.get("AD01")).toEqual({
+      code: "AD01",
+      g1: ["q", "Q", "Greek_psi", "Greek_PSI"],
+      g2: [],
+    });
+    // SPCE: пробелы и NBSP — одна группа.
+    expect(byCode.get("SPCE")).toEqual({
+      code: "SPCE",
+      g1: ["space", "space", "nobreakspace", "nobreakspace"],
+      g2: [],
+    });
+    // Пустая AC11 — [ NoSymbol ] без Group2.
+    expect(keyLines.find((l) => l.startsWith("key <AC11>"))).toBe(
+      'key <AC11> { type[Group1]="FOUR_LEVEL", symbols[Group1] = [ NoSymbol ] };',
+    );
+    // Предупреждения — только из base-слоёв (слои caps не кодируются).
+    expect(warnings.map((w) => w.code)).toEqual([
+      "W_LINUX_LIGATURE_FALLBACK",
+      "W_LINUX_LIGATURE_FALLBACK",
+    ]);
+  });
+
+  test("шапка single-group: без Group2 и ISO_Next_Group", async () => {
+    const spec = await loadSpec("tests/fixtures/golden-english.toml");
+    const { lines } = buildXkbText(spec);
+    const text = lines.join("\n");
+    expect(text).toContain('name[Group1]= "Universal Layout Ortho English";');
+    expect(text.includes("Group2")).toBe(false);
+    expect(text.includes("ISO_Next_Group")).toBe(false);
+    expect(text.includes("key <CAPS>")).toBe(false);
+  });
+
+  test("шапка two-group (merged): Group2 и ISO_Next_Group на месте", async () => {
+    const spec = await loadSpec("tests/fixtures/golden-merged.toml");
+    expect(spec.main.capsIsShift).toBe(false);
+    const { lines } = buildXkbText(spec);
+    const text = lines.join("\n");
+    expect(text).toContain('name[Group2]= "Universal Layout Ortho Merged (caps)";');
+    expect(text).toContain("key <CAPS> { [ ISO_Next_Group ] };");
+  });
+});
+
 describe("golden-снапшоты tests/golden/linux/*", () => {
+  // ULOEN/ULOENI/ULORU/ULORUI (caps_is_shift=true) — одна группа;
+  // ULOM/ULOMI (false) — две группы с ISO_Next_Group.
   for (const fixture of GOLDEN_FIXTURES) {
     test(`${fixture}`, async () => {
       const spec = await loadSpec(fixture);

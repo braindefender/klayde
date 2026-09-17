@@ -236,4 +236,32 @@ describe("структура LAYOUT (без эталона)", () => {
       expect((err as KlcBuildError).code).toBe("G_CAPS_LIGATURE");
     }
   });
+
+  test("G_CAPS_MODE: независимые caps при caps_is_shift=true — честная ошибка", async () => {
+    const spec = await loadSpec("tests/fixtures/golden-english.toml");
+    expect(spec.main.capsIsShift).toBe(true);
+    const patched: ValidatedSpec = {
+      ...spec,
+      layers: {
+        ...spec.layers,
+        // r2c1 (SC 10, SGCap): caps перестаёт совпадать с shift → SGCap,
+        // что запрещено режимом caps_is_shift=true.
+        caps: spec.layers.caps.map((row, ri) =>
+          row.map((c, ci) =>
+            ri === 1 && ci === 0
+              ? { kind: "char", codePoint: 0x78 } as const
+              : c,
+          ),
+        ),
+      },
+    };
+    const { buildLayoutBlock } = await import("../process/generators/windows/klcLayout.ts");
+    try {
+      buildLayoutBlock(patched);
+      throw new Error("ожидался KlcBuildError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(KlcBuildError);
+      expect((err as KlcBuildError).code).toBe("G_CAPS_MODE");
+    }
+  });
 });

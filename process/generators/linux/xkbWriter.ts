@@ -1,8 +1,9 @@
 /**
- * Сборка и атомарная запись `xkb_symbols` (docs/09, §2 и §9).
+ * Сборка и атомарная запись `xkb_symbols` (docs/09, §2 и §4).
  *
  * Структура — минимальная самодостаточная секция: includes,
- * имена групп, `key <CAPS>`, 50 строк `key`. LF-переводы строк,
+ * имя группы (при caps_is_shift=false — плюс имя Group2 и
+ * `key <CAPS>` с ISO_Next_Group), 50 строк `key`. LF-переводы строк,
  * UTF-8 без BOM. Без actions/terminators (dead keys отсутствуют,
  * элементы опциональны по DTD-производной практике upstream).
  */
@@ -30,14 +31,21 @@ export function buildXkbText(
 ): XkbFileResult {
   const { keyLines, warnings }: XkbBuildResult = buildXkbKeys(spec, table);
   const section = spec.main.shortName;
+  // caps_is_shift=true: одна группа, без ISO_Next_Group
+  // (CapsLock — штатный FOUR_LEVEL_ALPHABETIC, как в системных
+  // docs/xkb-en_US.xkb и docs/xkb-ru_RU.xkb).
   const lines = [
     "default partial alphanumeric_keys",
     `xkb_symbols "${section}" {`,
     '    include "pc+inet(evdev)";',
     '    include "level3(ralt_switch)";',
     `    name[Group1]= "${spec.main.name}";`,
-    `    name[Group2]= "${spec.main.name} (caps)";`,
-    "    key <CAPS> { [ ISO_Next_Group ] };",
+    ...(spec.main.capsIsShift
+      ? []
+      : [
+          `    name[Group2]= "${spec.main.name} (caps)";`,
+          "    key <CAPS> { [ ISO_Next_Group ] };",
+        ]),
     ...keyLines.map((l) => `    ${l}`),
     "};",
   ];

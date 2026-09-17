@@ -1,6 +1,7 @@
 [main]
 name = "Universal Layout Standard Merged"
 short_name = "ULSM"
+caps_is_shift = false
 
 [msklc]
 name = "ULSM"

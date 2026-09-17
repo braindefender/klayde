@@ -17,7 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { crossCheck } from "../process/validation/check-name-intersections.ts";
 import { validateFile, validateText } from "../process/validation/validate.ts";
-import { checkScalarValue } from "../process/validation/helpers.ts";
+import { checkScalarValue, isShortId } from "../process/validation/helpers.ts";
 import type { ValidationCode } from "../process/validation/report.ts";
 import { runCli } from "../process/main.ts";
 
@@ -69,6 +69,23 @@ describe("эталонные схемы fixtures/", () => {
         for (const row of matrix ?? []) expect(row.length).toBe(10);
       }
     }
+  });
+
+  test("caps_is_shift: merged — false, остальные golden — true", async () => {
+    for (const file of files.filter((f) => f.includes("golden-"))) {
+      const r = await validateFile(file);
+      expect(r.spec?.main.capsIsShift).toBe(!file.includes("merged"));
+    }
+  });
+
+  test("caps_is_shift по умолчанию true, если ключ не задан", async () => {
+    const text = await fs.readFile("tests/fixtures/valid-mini.toml", "utf8");
+    const without = text.replace(/^\s*caps_is_shift\s*=.*$/m, "");
+    expect(without).not.toContain("caps_is_shift");
+    const r = validateText("valid-mini-nokey.toml", without);
+    expect(errorCodes(r)).toEqual([]);
+    expect(warnCodes(r)).toEqual([]);
+    expect(r.spec?.main.capsIsShift).toBe(true);
   });
 });
 
@@ -126,6 +143,7 @@ describe("valid-mini: структура spec", () => {
     }
     expect([...(spec?.usedLigatures.keys() ?? [])]).toEqual(["FatArr"]);
     expect(spec?.usedLigatures.get("FatArr")).toEqual([0x3d, 0x3e]);
+    expect(spec?.main.capsIsShift).toBe(true);
     // Точечные токены: R5 = Space, None, Nbsp, Ligature.
     const r5 = spec?.layers.base[4] ?? [];
     expect(r5[0]).toEqual({ kind: "space" });
@@ -148,6 +166,9 @@ describe("фикстуры: ровно ожидаемые коды", () => {
     ["e_schema_type.toml", ["E_SCHEMA_TYPE"]],
     ["e_main_name.toml", ["E_MAIN_NAME"]],
     ["e_main_short_name.toml", ["E_MAIN_SHORT_NAME"]],
+    // caps_is_shift необязателен (boolean, по умолчанию true):
+    // не-boolean — E_SCHEMA_TYPE (V2).
+    ["e_main_caps_type.toml", ["E_SCHEMA_TYPE"]],
     ["e_msklc_name.toml", ["E_MSKLC_NAME"]],
     ["e_msklc_company.toml", ["E_MSKLC_COMPANY"]],
     ["e_msklc_copyright.toml", ["E_MSKLC_COPYRIGHT"]],
@@ -201,7 +222,7 @@ describe("координаты и подсказки", () => {
   test("E_QUOTES_TRIPLE_DOUBLE: номера строк файла", async () => {
     const r = await validateFixture("e_quotes_triple_double.toml");
     const lines = r.errors.map((e) => e.message.match(/строка (\d+)/)?.[1]);
-    expect(lines).toEqual(["23", "29"]);
+    expect(lines).toEqual(["24", "30"]);
   });
 
   test("E_CELL_CONTROL: код символа", async () => {
@@ -261,6 +282,15 @@ describe("V9 через файлы: E_MSKLC_DUP_NAME", () => {
 });
 
 describe("недостижимое через TOML", () => {
+  test("isShortId: дефис внутри разрешён (MSKLC принимает EN-US), с краю — нет", () => {
+    for (const ok of ["ULOM", "ULOEN", "EN-US", "RU-RU", "A", "A1", "A-1-B"]) {
+      expect(isShortId(ok)).toBe(true);
+    }
+    for (const bad of ["", "TOOLONG99", "bad name", "-", "-A", "A-", "A_B", "A.B"]) {
+      expect(isShortId(bad)).toBe(false);
+    }
+  });
+
   test("E_UNICODE: суррогат — прямое unit-покрытие checkScalarValue", () => {
     expect(checkScalarValue(0xd800)).toBe("E_UNICODE");
     expect(checkScalarValue(0xdfff)).toBe("E_UNICODE");

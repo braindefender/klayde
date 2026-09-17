@@ -1,6 +1,7 @@
 [main]
 name = "Fixture Valid Trans"
 short_name = "FIXT"
+caps_is_shift = false
 
 [msklc]
 name = "FIXT"

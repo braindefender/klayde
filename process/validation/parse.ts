@@ -10,8 +10,9 @@
  * (`[layout].base_shfit`); отсутствие обязательных секций/ключей/слоёв —
  * тот же код (в docs/03 отдельный код отсутствия не введён).
  * Значения, которые должны быть строками, но пришли числом/массивом/
- * таблицей — E_SCHEMA_TYPE. Зависимые стадии пропускаются для
- * отсутствующего (docs/03, стадия V2).
+ * таблицей — E_SCHEMA_TYPE. Необязательный `[main].caps_is_shift` —
+ * boolean по умолчанию true (не-boolean — тоже E_SCHEMA_TYPE). Зависимые стадии
+ * пропускаются для отсутствующего (docs/03, стадия V2).
  */
 
 import { errorDiag, type Diagnostic } from "./report.ts";
@@ -51,6 +52,8 @@ export function parseTomlDocument(text: string): unknown {
 export interface StructuredDoc {
   /** Строковые значения [main] (только корректные по типу). */
   main: Record<string, string>;
+  /** Режим CapsLock из [main].caps_is_shift (boolean; по умолчанию true; undefined — битый тип, об ошибке уже сообщено). */
+  capsIsShift: boolean | undefined;
   /** Строковые значения [msklc]. */
   msklc: Record<string, string>;
   /** Строковые значения [ligatures] (имена — любые ключи; шаблон — V4). */
@@ -75,6 +78,7 @@ export function checkStructure(doc: unknown, file: string): {
   const diagnostics: Diagnostic[] = [];
   const structured: StructuredDoc = {
     main: {},
+    capsIsShift: undefined,
     msklc: {},
     ligatures: {},
     layout: {},
@@ -110,6 +114,7 @@ export function checkStructure(doc: unknown, file: string): {
   }
 
   checkStringSection(doc, "main", MAIN_KEYS, ["name", "short_name"], structured, diagnostics, file);
+  checkMainCapsIsShift(doc, structured, diagnostics, file);
   checkStringSection(
     doc,
     "msklc",
@@ -218,6 +223,9 @@ function checkStringSection(
       );
       continue;
     }
+    // [main].caps_is_shift — boolean, проверяется отдельно
+    // (checkMainCapsIsShift): здесь только пропуск без строковой проверки.
+    if (section === "main" && key === "caps_is_shift") continue;
     if (typeof value !== "string") {
       diagnostics.push(
         errorDiag(
@@ -241,4 +249,35 @@ function checkStringSection(
       );
     }
   }
+}
+
+/**
+ * Проверить [main].caps_is_shift (docs/toml-schema.md, docs/02 раздел 3):
+ * необязательный boolean, по умолчанию true. Отсутствие — не ошибка
+ * (стандартный режим); не-boolean — E_SCHEMA_TYPE (V2, как и прочие
+ * типовые нарушения).
+ */
+function checkMainCapsIsShift(
+  doc: Record<string, unknown>,
+  structured: StructuredDoc,
+  diagnostics: Diagnostic[],
+  file: string,
+): void {
+  const raw = doc["main"];
+  if (!isRecord(raw) || !("caps_is_shift" in raw)) {
+    structured.capsIsShift = true;
+    return;
+  }
+  const value = raw["caps_is_shift"];
+  if (typeof value !== "boolean") {
+    diagnostics.push(
+      errorDiag(
+        "E_SCHEMA_TYPE",
+        file,
+        `[main].caps_is_shift: ожидалось булево значение true/false, получено ${describeType(value)}`,
+      ),
+    );
+    return;
+  }
+  structured.capsIsShift = value;
 }

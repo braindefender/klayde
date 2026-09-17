@@ -1,0 +1,59 @@
+[main]
+name = "Russian (RU)"
+short_name = "RU-RU"
+caps_is_shift = true
+
+[msklc]
+name = "RU-RU"
+company = "Unknown"
+copyright = "©2026 Unknown"
+description = "Russian (RU)"
+
+[layout]
+base = '''
+1        2        3        4        5        6        7        8        9        0
+й        ц        у        к        е        н        г        ш        щ        з
+ф        ы        в        а        п        р        о        л        д        ж
+я        ч        с        м        и        т        ю        б        ю        .
+@Space   ё        -        =        х        ъ        \        э        \        ,
+'''
+
+base_shift = '''
+!        "        №        ;        %        :        ?        *        (        )
+Й        Ц        У        К        Е        Н        Г        Ш        Щ        З
+Ф        Ы        В        А        П        Р        О        Л        Д        Ж
+Я        Ч        С        М        И        Т        Ю        Б        Ю        ,
+@Space   Ё        _        +        Х        Ъ        /        Э        /        ,
+'''
+
+caps = '''
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+Й        Ц        У        К        Е        Н        Г        Ш        Щ        З
+Ф        Ы        В        А        П        Р        О        Л        Д        Ж
+Я        Ч        С        М        И        Т        Ю        Б        Ю        @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+'''
+
+caps_shift = '''
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+й        ц        у        к        е        н        г        ш        щ        з
+ф        ы        в        а        п        р        о        л        д        ж
+я        ч        с        м        и        т        ю        б        ю        @Trans
+@Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans   @Trans
+'''
+
+altgr = '''
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+'''
+
+altgr_shift = '''
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+@None    @None    @None    @None    @None    @None    @None    @None    @None    @None
+'''

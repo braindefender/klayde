@@ -66,7 +66,13 @@ Windows-генератор дополнительно использует дв�
 5. **Прозрачность/swap без расширений.** `caps==base && caps_shift==base_shift`
    → `Cap 0` (CapsLock без эффекта, нативно для MSKLC);
    `caps==shift && caps_shift==base` → `Cap 1` (нативный caps=shift MSKLC).
-   Иначе — `SGCap` с расширением из явных слоёв.
+   Иначе — `SGCap` с расширением из явных слоёв (только merged-режим).
+6. **Режим CapsLock — явный флаг.** `[main].caps_is_shift`
+   (см. `docs/toml-schema.md`, по умолчанию `true`): `true` — стандарт (caps связаны с base;
+   Windows — только `Cap 0`/`Cap 1`, Linux — одна группа без
+   `ISO_Next_Group`), `false` — независимые caps для виртуального
+   переключения раскладки (Windows — `SGCap`-расширения, Linux — две
+   группы с `ISO_Next_Group`).
 6. **Генераторы ОС — взаимозаменяемые стратегии** за общим интерфейсом
    `OsGenerator`. Сейчас реализуется только `WindowsKlcGenerator`,
    остальные — заглушки. Добавление Linux/macOS не меняет CLI, модель

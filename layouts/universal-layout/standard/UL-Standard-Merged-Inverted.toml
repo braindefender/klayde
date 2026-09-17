@@ -1,6 +1,7 @@
 [main]
 name = "Universal Layout Standard Merged Inverted"
 short_name = "ULSMI"
+caps_is_shift = false
 
 [msklc]
 name = "ULSMI"
