@@ -7,6 +7,10 @@ Keyboard Layout Definition Emitter
 Вход: один или несколько файлов из `layouts/`.
 Выход: файлы раскладок под Windows (`.klc`), macOS (`.keylayout`), Linux (XKB)
 
+## Документация
+
+[TOML Схема](./docs/toml-schema.md)
+
 ## Требования
 
 [Bun](https://bun.com) ≥ 1.4.
