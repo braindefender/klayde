@@ -14,8 +14,15 @@
  *   на ячейку (XKB: одно нажатие — один keysym, раздел 5);
  * - `@None` в хвосте опускается, в середине/начале — `NoSymbol`;
  *   полностью пустая клавиша — `[ NoSymbol ]` (защита от наследования);
- * - типы — всегда явно на группу (`FOUR_LEVEL_ALPHABETIC` ряды 2–4,
- *   `FOUR_LEVEL` ряд 1/5), дефолтов нет;
+ * - исключение: `KPDL` (r5c10) всегда несёт фиксированную эталонную пару
+ *   `KPDL_SYMBOLS` (`KP_Delete, KP_Separator`) — сетка её не переопределяет;
+ * - тип Group1 — по содержимому caps-слоёв, как Cap в Windows
+ *   (паритет генераторов): позиция переопределена в caps/caps_shift
+ *   (отличие от base/base_shift, включая swap) — `FOUR_LEVEL_ALPHABETIC`
+ *   (CapsLock работает), прозрачная (`@Trans` → копия base) —
+ *   `FOUR_LEVEL` (CapsLock без эффекта). Тип доступен любым позициям
+ *   сетки, а не только рядам 2–4 (напр. ё/х/ъ/э пятого ряда в RU);
+ *   тип Group2 (двугрупповой режим) — по ряду, как раньше;
  * - `trans` в матрицах невозможен (валидатор резолвит/отклоняет) —
  *   встреча → G_INTERNAL (defense in depth, как в klcLayout.ts).
  */
@@ -45,6 +52,16 @@ export class XkbBuildError extends Error {
 }
 
 export const LINUX_LIGATURE_FALLBACK: ValidationWarningCode = "W_LINUX_LIGATURE_FALLBACK";
+
+/**
+ * Фиксированные символы KPDL (r5c10) — как в reference (upstream):
+ * `[KP_Delete, KP_Separator]`. Нумпадная клавиша отличается от Windows
+ * VK_DECIMAL (там Windows сама ставит KP_Delete при выключенном NumLock,
+ * а Linux определяет пару явно); KP_Separator система маппит в конкретный
+ * символ позже. Поэтому XKB-генератор позицию НЕ переопределяет содержимым
+ * сетки (сетка r5c10 по-прежнему едет в Windows DECIMAL).
+ */
+export const KPDL_SYMBOLS: readonly string[] = ["KP_Delete", "KP_Separator"];
 
 export interface XkbBuildResult {
   /** Строки `key …` в порядке таблицы (50 штук). */
@@ -99,6 +116,48 @@ function typeName(row: number): string {
   return row >= 2 && row <= 4 ? "FOUR_LEVEL_ALPHABETIC" : "FOUR_LEVEL";
 }
 
+/** Равенство ячеек по содержимому (зеркало cellsEqual из klcLayout.ts). */
+function cellsEqualValue(a: CellValue, b: CellValue): boolean {
+  if (a.kind !== b.kind) return false;
+  switch (a.kind) {
+    case "none":
+    case "space":
+    case "nbsp":
+      return true;
+    case "trans":
+      return false;
+    case "char":
+      return a.codePoint === (b as { codePoint: number }).codePoint;
+    case "ligature": {
+      const bc = b as { codePoints: number[] };
+      if (a.codePoints.length !== bc.codePoints.length) return false;
+      return a.codePoints.every((cp, i) => cp === bc.codePoints[i]);
+    }
+  }
+}
+
+/**
+ * Переопределена ли позиция в caps-слоях (сырые значения, до encodeLevel —
+ * без побочных предупреждений fallback'а).
+ * Прозрачная (`@Trans` → копия base) — false; swap/независимая — true.
+ * `trans` сюда попадать не должен (валидатор резолвит до spec).
+ */
+function capsOverridden(spec: ValidatedSpec, row: number, col: number): boolean {
+  const c = (spec.layers.caps[row - 1] as CellValue[])[col - 1] as CellValue;
+  const cs = (spec.layers.capsShift[row - 1] as CellValue[])[col - 1] as CellValue;
+  for (const v of [c, cs]) {
+    if (v.kind === "trans") {
+      throw new XkbBuildError(
+        "G_INTERNAL",
+        `@Trans в caps достиг генератора без резолва (${row},${col})`,
+      );
+    }
+  }
+  const b = (spec.layers.base[row - 1] as CellValue[])[col - 1] as CellValue;
+  const bs = (spec.layers.baseShift[row - 1] as CellValue[])[col - 1] as CellValue;
+  return !cellsEqualValue(c, b) || !cellsEqualValue(cs, bs);
+}
+
 export function buildXkbKeys(
   spec: ValidatedSpec,
   table: XkbKeysymTable = DEFAULT_XKB_KEYSYM_TABLE,
@@ -130,16 +189,29 @@ export function buildXkbKeys(
   const keyLines = XKB_POSITIONS.map((pos) => {
     const at = (matrix: (string | null)[][]): string | null =>
       (matrix[pos.row - 1] as (string | null)[])[pos.col - 1] as string | null;
+    // KPDL: фиксированная эталонная пара, сетка игнорируется (см. KPDL_SYMBOLS).
+    if (pos.code === "KPDL") {
+      const tk = typeName(pos.row);
+      const fixed = KPDL_SYMBOLS.join(", ");
+      if (singleGroup) {
+        return `key <${pos.code}> { type[Group1]="${tk}", symbols[Group1] = [ ${fixed} ] };`;
+      }
+      return `key <${pos.code}> { type[Group1]="${tk}", type[Group2]="${tk}", symbols[Group1] = [ ${fixed} ], symbols[Group2] = [ ${fixed} ] };`;
+    }
+    // Group1: Lock-эмуляция CapsLock — как Cap в Windows.
+    const t1 = capsOverridden(spec, pos.row, pos.col)
+      ? "FOUR_LEVEL_ALPHABETIC"
+      : "FOUR_LEVEL";
     const t = typeName(pos.row);
     if (singleGroup) {
       const l1 = packLevels([at(base), at(baseShift), at(altgr), at(altgrShift)]);
-      return `key <${pos.code}> { type[Group1]="${t}", symbols[Group1] = [ ${l1.join(", ")} ] };`;
+      return `key <${pos.code}> { type[Group1]="${t1}", symbols[Group1] = [ ${l1.join(", ")} ] };`;
     }
     const g1 = [at(base), at(baseShift), at(altgr), at(altgrShift)];
     const g2 = [at(caps as (string | null)[][]), at(capsShift as (string | null)[][]), at(altgr), at(altgrShift)];
     const l1 = packLevels(g1);
     const l2 = packLevels(g2);
-    return `key <${pos.code}> { type[Group1]="${t}", type[Group2]="${t}", symbols[Group1] = [ ${l1.join(", ")} ], symbols[Group2] = [ ${l2.join(", ")} ] };`;
+    return `key <${pos.code}> { type[Group1]="${t1}", type[Group2]="${t}", symbols[Group1] = [ ${l1.join(", ")} ], symbols[Group2] = [ ${l2.join(", ")} ] };`;
   });
 
   // Defense in depth: ровно 50 строк; в одногрупповом режиме —

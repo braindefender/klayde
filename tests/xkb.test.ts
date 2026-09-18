@@ -157,11 +157,11 @@ describe("buildXkbKeys: группы и уровни", () => {
       g1: ["5", "percent", "U2030"],
       g2: ["5", "percent", "U2030"],
     });
-    // KPDL merged: сетка ./, во всех слоях — 4 уровня в обеих группах.
+    // KPDL merged: фиксированная эталонная пара, сетка ./, игнорируется.
     expect(byCode.get("KPDL")).toEqual({
       code: "KPDL",
-      g1: ["period", "comma", "period", "comma"],
-      g2: ["period", "comma", "period", "comma"],
+      g1: ["KP_Delete", "KP_Separator"],
+      g2: ["KP_Delete", "KP_Separator"],
     });
     // Предупреждения — по одному на ячейку-лигатуру (без дублей Group2).
     expect(warnings.map((w) => w.code)).toEqual([

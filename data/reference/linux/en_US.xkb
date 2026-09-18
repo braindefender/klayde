@@ -41,6 +41,7 @@ xkb_symbols "basic" {
     key <AC10>  {[ semicolon,    colon          ]};
     key <AC11>  {[ apostrophe,   quotedbl       ]};
     key <BKSL>  {[ backslash,    bar            ]};
+    key <LSGT>  {[  backslash,   bar  ]};
 
     key <AB01>  {[       z,      Z              ]};
     key <AB02>  {[       x,      X              ]};
@@ -52,4 +53,6 @@ xkb_symbols "basic" {
     key <AB08>  {[   comma,      less           ]};
     key <AB09>  {[  period,      greater        ]};
     key <AB10>  {[   slash,      question       ]};
+
+    key <KPDL>  {[ KP_Delete, KP_Separator ]};
 };

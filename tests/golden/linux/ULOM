@@ -54,5 +54,5 @@ xkb_symbols "ULOM" {
     key <BKSL> { type[Group1]="FOUR_LEVEL", type[Group2]="FOUR_LEVEL", symbols[Group1] = [ slash, bar, backslash, brokenbar ], symbols[Group2] = [ slash, bar, backslash, brokenbar ] };
     key <AC11> { type[Group1]="FOUR_LEVEL", type[Group2]="FOUR_LEVEL", symbols[Group1] = [ NoSymbol ], symbols[Group2] = [ NoSymbol ] };
     key <LSGT> { type[Group1]="FOUR_LEVEL", type[Group2]="FOUR_LEVEL", symbols[Group1] = [ slash, bar, backslash, brokenbar ], symbols[Group2] = [ slash, bar, backslash, brokenbar ] };
-    key <KPDL> { type[Group1]="FOUR_LEVEL", type[Group2]="FOUR_LEVEL", symbols[Group1] = [ period, comma, period, comma ], symbols[Group2] = [ period, comma, period, comma ] };
+    key <KPDL> { type[Group1]="FOUR_LEVEL", type[Group2]="FOUR_LEVEL", symbols[Group1] = [ KP_Delete, KP_Separator ], symbols[Group2] = [ KP_Delete, KP_Separator ] };
 };
