@@ -9,6 +9,14 @@ company = "braindefender"
 copyright = "©2026 braindefender"
 description = "Universal Layout Standard Russian Inverted"
 
+[macos]
+bundle_id = "com.braindefender.universal-layout"
+bundle_name = "Universal Layout Standard Russian Inverted"
+icon_is_template = true
+icon_path = "psi.icns"
+intended_language = "ru"
+project_name = "Universal Layout"
+
 [ligatures]
 FatArr = "=>"
 ThinArr = "->"

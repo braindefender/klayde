@@ -29,6 +29,7 @@ import {
   type Diagnostic,
 } from "./validation/report.ts";
 import { getGenerator } from "./generators/registry.ts";
+import { resolveBundleDir } from "./generators/macos/bundle.ts";
 import { USAGE_FULL } from "./cli/const.ts";
 import { OS_LIST } from "./model";
 
@@ -84,6 +85,7 @@ export async function runCli(argv: string[]): Promise<number> {
         mainName: spec.main.name,
         mainShortName: spec.main.shortName,
         msklcName: spec.msklc.name,
+        macosBundleDir: resolveBundleDir(spec, opts.outDir),
       })),
     ),
   );

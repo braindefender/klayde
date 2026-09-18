@@ -88,8 +88,8 @@ export const MSKLC_TEXT_FIELDS: readonly (readonly [string, MsklcErrorCode])[] =
 
 /** Секции, обязанные присутствовать. */
 export const REQUIRED_SECTIONS = ["main", "msklc", "layout"] as const;
-/** Секции, которые могут отсутствовать. */
-export const OPTIONAL_SECTIONS = ["ligatures"] as const;
+/** Секции, которые могут отсутствовать (весь блок [macos] опционален). */
+export const OPTIONAL_SECTIONS = ["ligatures", "macos"] as const;
 
 /** Допустимые ключи [main] / [msklc]. */
 export const MAIN_KEYS = new Set(["name", "short_name", "caps_is_shift"]);
@@ -102,3 +102,57 @@ export const MSKLC_KEYS = new Set([
   "locale_name",
   "locale_id",
 ]);
+
+// --- [macos]: опциональная секция метаданных bundle (все поля опциональны) ---
+
+/** Допустимые ключи [macos]. */
+export const MACOS_KEYS = new Set([
+  "bundle_id",
+  "bundle_name",
+  "bundle_version",
+  "keyboard_name",
+  "capslock_language_switch_capable",
+  "icon_is_template",
+  "input_source_id",
+  "intended_language",
+  "build_version",
+  "project_name",
+  "source_version",
+  "icon_path",
+]);
+
+/** Строковые ключи [macos] (остальные два — boolean). */
+export const MACOS_STRING_KEYS = new Set([
+  "bundle_id",
+  "bundle_name",
+  "bundle_version",
+  "keyboard_name",
+  "input_source_id",
+  "intended_language",
+  "build_version",
+  "project_name",
+  "source_version",
+  "icon_path",
+]);
+
+/** Boolean-ключи [macos]. */
+export const MACOS_BOOL_KEYS = new Set([
+  "capslock_language_switch_capable",
+  "icon_is_template",
+]);
+
+/** Дефолт [macos].bundle_id. */
+export const MACOS_BUNDLE_ID_DEFAULT = "com.clayde.layout";
+/** Дефолт версий bundle/build/source: числа, разделённые точками. */
+export const MACOS_VERSION_DEFAULT = "1.0";
+/** Дефолт [macos].intended_language. */
+export const MACOS_INTENDED_LANGUAGE_DEFAULT = "en";
+
+/** Версия: числа, разделённые точками (1, 1.0, 2.3.4). */
+export const MACOS_VERSION_RE = /^[0-9]+(\.[0-9]+)*$/;
+/** intended_language: ровно две латинские буквы. */
+export const MACOS_INTENDED_LANGUAGE_RE = /^[A-Za-z]{2}$/;
+/** keyboard_name (явный): только буквы, 1+ символов. */
+export const MACOS_KEYBOARD_NAME_RE = /^[A-Za-z]+$/;
+/** icon_path: путь к файлу иконки, расширение .icns. */
+export const MACOS_ICON_PATH_RE = /\.icns$/i;

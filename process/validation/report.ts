@@ -60,6 +60,20 @@ export type CellErrorCode =
 /** V8: маппируемость в Unicode. */
 export type UnicodeErrorCode = "E_UNICODE";
 
+/** V3: скаляры [macos] (все поля опциональны, проверяются при наличии/дефолте). */
+export type MacosErrorCode =
+  | "E_MACOS_BUNDLE_ID"
+  | "E_MACOS_BUNDLE_NAME"
+  | "E_MACOS_BUNDLE_VERSION"
+  | "E_MACOS_KEYBOARD_NAME"
+  | "E_MACOS_INPUT_SOURCE_ID"
+  | "E_MACOS_INTENDED_LANGUAGE"
+  | "E_MACOS_BUILD_VERSION"
+  | "E_MACOS_PROJECT_NAME"
+  | "E_MACOS_SOURCE_VERSION"
+  | "E_MACOS_ICON_PATH"
+  | "E_MACOS_DUP_BUNDLE";
+
 /** Коды ошибок валидации одного файла (V0–V8) и кросс-проверки (V9). */
 export type ValidationErrorCode =
   | IoErrorCode
@@ -68,6 +82,7 @@ export type ValidationErrorCode =
   | SchemaErrorCode
   | MainErrorCode
   | MsklcErrorCode
+  | MacosErrorCode
   | LigErrorCode
   | GridErrorCode
   | CellErrorCode

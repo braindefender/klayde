@@ -25,6 +25,21 @@ export interface ValidatedSpec {
     localeName: string;
     localeId: string;
   };
+  macos: {
+    bundleId: string;
+    bundleName: string;
+    bundleVersion: string;
+    keyboardName: string;
+    capslockLanguageSwitchCapable: boolean;
+    iconIsTemplate: boolean;
+    inputSourceId: string;
+    intendedLanguage: string;
+    buildVersion: string;
+    projectName: string;
+    sourceVersion: string;
+    /** Сырое значение [macos].icon_path (путь к .icns относительно каталога схемы); undefined — иконки нет. */
+    iconPath: string | undefined;
+  };
   layers: {
     base: CellValue[][];
     baseShift: CellValue[][];

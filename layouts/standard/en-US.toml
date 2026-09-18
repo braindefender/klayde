@@ -10,6 +10,19 @@ copyright = "©2026 Unknown"
 description = "English (US)"
 language_names = "English (United States)"
 
+[macos]
+bundle_id = "com.apple.keylayout"
+bundle_name = "English (US)"
+bundle_version = "1.0"
+keyboard_name = "ENKbName"
+capslock_language_switch_capable = false
+icon_is_template = false
+input_source_id = "com.apple.keylayout.enkbname"
+intended_language = "en"
+build_version = "1.0"
+project_name = "English (US)"
+source_version = "1.0"
+
 [layout]
 base = '''
 1        2        3        4        5        6        7        8        9        0

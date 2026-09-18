@@ -1,29 +1,66 @@
-# Генерация раскладок для macOS (`.keylayout`): исследование и план
+# Генерация раскладок для macOS (`.bundle`): исследование и план
 
-Статус: план, не реализация. Закрывает заглушку `MacosGenerator`
-(`process/generators/macos/index.ts`, сейчас `skip: not implemented`).
+Статус: реализован bundle-генератор (`process/generators/macos/`).
 Контракт CLI (`--os=macos`, docs/01) и интерфейс `OsGenerator` (docs/08)
 не меняются.
 
 ## 1. Что генерируем
 
-Один XML-файл на схему (без бандла и иконок в v1):
+Один `.bundle` на схему (1 TOML = 1 bundle = 1 раскладка):
 
 ```text
-<out>/macos/<main.name>.keylayout
+<out>/macos/<main.name>.bundle/
+└── Contents/
+    ├── Info.plist
+    ├── version.plist
+    └── Resources/
+        ├── <keyboard_name>.keylayout
+        ├── <keyboard_name>.icns      # только при заданном [macos].icon_path
+        └── en.lproj/
+            └── InfoPlist.strings
 ```
 
-Имя — `main.name` с пробелами (как `.klc` и как файлы upstream).
-Установка — копированием вручную (генератор ничего не ставит в систему):
+Имя каталога — `[macos].bundle_name` (дефолт — `[main].name`).
+Установка — копированием bundle вручную (генератор ничего не ставит в систему):
 
-- `~/Library/Keyboard Layouts/<имя>.keylayout` (или `/Library/...` для всех
+- `~/Library/Keyboard Layouts/<имя>.bundle` (или `/Library/...` для всех
   пользователей), затем выбор в Settings → Keyboard → Input Sources
   (может потребоваться relogin);
-- файл открывается в [Ukelele](https://software.sil.org/ukelele) —
+- `.keylayout` внутри открывается в [Ukelele](https://software.sil.org/ukelele) —
   это второй ручной acceptance-канал помимо набора текста.
 
-Наш продукт — валидный `.keylayout`, который macOS принимает
+Наш продукт — валидный `.bundle`, который macOS принимает
 (появляется в Input Sources, все слои печатают).
+Иконка: `[macos].icon_path` — путь к `.icns` относительно каталога TOML-схемы;
+генератор копирует файл байт-в-байт в `Resources/<keyboard_name>.icns`
+(то же имя, что у `.keylayout`; отдельная plist-ссылка не нужна — в эталоне
+её тоже нет, macOS находит иконку по совпадению имён).
+Без `icon_path` иконки в bundle нет. Пример:
+`layouts/universal-layout/standard/UL-Standard-English.toml` + `psi.icns`.
+
+## 1.1. Маппинг `[macos]` → файлы bundle
+
+Сверено с эталоном `data/reference/macos/Layouts.bundle/Contents` (Ukelele):
+
+- `Contents/Info.plist`: `CFBundleIdentifier` ← `bundle_id`,
+  `CFBundleName` ← `bundle_name`, `CFBundleVersion` ← `bundle_version`,
+  `KLInfo_<keyboard_name>` ← единственная запись с
+  `TICapsLockLanguageSwitchCapable` ← `capslock_language_switch_capable`,
+  `TISIconIsTemplate` ← `icon_is_template`,
+  `TISInputSourceID` ← `input_source_id`,
+  `TISIntendedLanguage` ← `intended_language`.
+  В эталоне записей `KLInfo_*` две (`ENKbName` + `RUKbName`), т.к. эталонный
+  bundle содержит сразу две раскладки; мы всегда пишем одну.
+- `Contents/version.plist`: `BuildVersion` ← `build_version`,
+  `ProjectName` ← `project_name`, `SourceVersion` ← `source_version`.
+- `Contents/Resources/<keyboard_name>.keylayout`: имя файла и
+  `<keyboard name="">` ← `keyboard_name` (ср. эталон:
+  `ENKbName.keylayout` ↔ `name="ENKbName"`); `id` — детерминированный
+  FNV-1a от `main.name` (как раньше).
+- `Contents/Resources/<keyboard_name>.icns`: байт-копия `icon_path`
+  (только если задан; отсутствие — не ошибка).
+- `Contents/Resources/en.lproj/InfoPlist.strings`:
+  `"keyboard_name" = "keyboard_name";` (как в эталоне).
 
 ## 2. Формат `.keylayout` (факты)
 
@@ -50,7 +87,8 @@
 Факты, на которые опирается генератор:
 
 1. `group="126"` — хардкод для кастомных раскладок (подтверждено обоими
-   файлами и шпаргалкой). `name` — `main.name`.
+   файлами и шпаргалкой). `name` — `[macos].keyboard_name`
+   (см. раздел 1.1; раньше был `main.name`).
 2. `id` — у Ukelele случайный отрицательный int32 (у upstream `-24174`
    и `-15810`), обязан различаться у разных раскладок. Наш генератор:
    детерминированный FNV-1a от `main.name`, отображённый на отрицательный
@@ -194,8 +232,9 @@ class MacosGenerator implements OsGenerator {
 }
 ```
 
-- Выход: `<out>/macos/<main.name>.keylayout`, UTF-8 без BOM, CRLF
-  (как upstream),
+- Выход: `<out>/macos/<main.name>.bundle/` (раздел 1.1), `.keylayout`
+  внутри — UTF-8 без BOM, CRLF (как upstream); plist/strings — UTF-8
+  без BOM, LF (как эталонный bundle),
   запись атомарная (временный файл + rename, как `klcWriter.ts`).
 - `G_`/`W_`-кодов v1 не предвидится: лигатуры и caps представляются
   нативно, astral-символы — сырым UTF-8 (maxout считает UTF-16 единицы).
@@ -215,20 +254,22 @@ class MacosGenerator implements OsGenerator {
   + точечные assertions значений (`output="=>"` на коде 40
   в картах 4/5 и т.п.);
 - golden-снапшоты: наши образцы в `tests/golden/*.keylayout`
-  (пишутся нами, ревьюятся построчно; файлы upstream — только референс,
-  не golden, см. раздел 11);
+  (пишутся нами, ревьюятся построчно; `name` = `[macos].keyboard_name`,
+  файлы upstream — только референс, не golden, см. раздел 11);
+- структура bundle (`Info.plist` / `version.plist` / `InfoPlist.strings` /
+  единственный `KLInfo_*`) — в `tests/macos-bundle.test.ts`;
 - юнит-тесты таблицы привязки (50 записей) и `encodeOutput`
   (экранирование, NBSP, пустые, maxout);
 - `plutil -lint` — только на Mac (ручной шаг).
 
 Ручной acceptance на Mac (два канала):
 
-1. Скопировать `.keylayout` в `~/Library/Keyboard Layouts/`, выбрать
+1. Скопировать `.bundle` в `~/Library/Keyboard Layouts/`, выбрать
    в Input Sources (relogin при необходимости), набрать все 4 слоя +
    Caps / Caps+Shift по каждой клавише, сверить с TOML;
 2. Открыть файл в Ukelele — структура должна читаться без ошибок.
 
-## 10. План внедрения (по шагам)
+## 10. Состав реализации
 
 1. **Таблица привязки** `process/generators/macos/positions.ts`
    (`mac-5x10-v1`, 50 записей: `(r,c) → keycode`) + тест «50 записей».
@@ -238,13 +279,16 @@ class MacosGenerator implements OsGenerator {
    как константы (`keylayoutHeader.ts`), `key <CAPS>` не трогаем
    (код 57 отсутствует в картах — CapsLock работает через `caps`-селектор).
 3. **`keylayoutWriter.ts`**: шапка/DOCTYPE/комментарий, `keyboard`-тег
-   (`group 126`, детерминированный `id`, `maxout`), сборка, CRLF
-   (как upstream), UTF-8 без BOM, атомарная запись в `<out>/macos/`
+   (`group 126`, детерминированный `id` от `main.name`,
+   `name` = `[macos].keyboard_name`, `maxout`), сборка, CRLF
+   (как upstream), UTF-8 без BOM.
+4. **`bundle.ts`**: `Info.plist` / `version.plist` / `InfoPlist.strings`
+   (маппинг — раздел 1.1), раскладка путей, атомарная запись всего bundle
    с сохранением структуры `layouts/` (общий `resolveOsOutDir`).
-4. **`index.ts`**: `MacosGenerator`, подключение к реестру
-   (реестр уже есть — только замена заглушки).
-5. **Golden-снапшоты + XML-тесты**, регресс `bun run all`.
-6. Ручной acceptance на Mac (два канала из раздела 9).
+5. **`index.ts`**: `MacosGenerator` → `writeBundle`, подключение к реестру.
+6. **Golden-снапшоты + XML-тесты + `tests/macos-bundle.test.ts`**,
+   регресс `bun test`.
+7. Ручной acceptance на Mac (два канала из раздела 9).
 
 ## 11. Сверка с существующей реализацией
 

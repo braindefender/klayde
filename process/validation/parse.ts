@@ -19,6 +19,9 @@ import { errorDiag, type Diagnostic } from "./report.ts";
 import {
   LAYOUT_KEYS,
   LAYOUT_KEY_SET,
+  MACOS_BOOL_KEYS,
+  MACOS_KEYS,
+  MACOS_STRING_KEYS,
   MAIN_KEYS,
   MSKLC_KEYS,
   OPTIONAL_SECTIONS,
@@ -56,6 +59,10 @@ export interface StructuredDoc {
   capsIsShift: boolean | undefined;
   /** Строковые значения [msklc]. */
   msklc: Record<string, string>;
+  /** Строковые значения [macos] (только корректные по типу; все поля опциональны). */
+  macos: Record<string, string>;
+  /** Boolean-значения [macos] (по умолчанию false; битый тип — ключ отсутствует, об ошибке уже сообщено). */
+  macosBools: Record<string, boolean>;
   /** Строковые значения [ligatures] (имена — любые ключи; шаблон — V4). */
   ligatures: Record<string, string>;
   /** Сырые значения [layout] (строки уходят в V5; не-строки уже отклонены). */
@@ -80,6 +87,8 @@ export function checkStructure(doc: unknown, file: string): {
     main: {},
     capsIsShift: undefined,
     msklc: {},
+    macos: {},
+    macosBools: {},
     ligatures: {},
     layout: {},
     layoutKeys: new Set(),
@@ -124,6 +133,7 @@ export function checkStructure(doc: unknown, file: string): {
     diagnostics,
     file,
   );
+  checkMacosSection(doc, structured, diagnostics, file);
 
   // [ligatures]: ключи произвольные (шаблон имени — V4), значения — строки.
   const ligRaw = (doc as Record<string, unknown>)["ligatures"];
@@ -280,4 +290,65 @@ function checkMainCapsIsShift(
     return;
   }
   structured.capsIsShift = value;
+}
+
+/**
+ * Проверить опциональный [macos] (все поля опциональны):
+ * неизвестные ключи — E_SCHEMA_UNKNOWN_KEY; строковые поля не-строкой
+ * и boolean-поля не-boolean — E_SCHEMA_TYPE (битые значения отбрасываются,
+ * зависимые стадии их пропускают и применяют дефолты).
+ */
+function checkMacosSection(
+  doc: Record<string, unknown>,
+  structured: StructuredDoc,
+  diagnostics: Diagnostic[],
+  file: string,
+): void {
+  const raw = doc["macos"];
+  if (raw === undefined) {
+    structured.hasSection["macos"] = false;
+    return;
+  }
+  if (!isRecord(raw)) {
+    structured.hasSection["macos"] = false;
+    diagnostics.push(errorDiag("E_SCHEMA_TYPE", file, `[macos]: ожидалась таблица`));
+    return;
+  }
+  structured.hasSection["macos"] = true;
+  for (const [key, value] of Object.entries(raw)) {
+    if (!MACOS_KEYS.has(key)) {
+      diagnostics.push(
+        errorDiag("E_SCHEMA_UNKNOWN_KEY", file, `[macos].${key}: неизвестный ключ`),
+      );
+      continue;
+    }
+    if (MACOS_BOOL_KEYS.has(key)) {
+      if (typeof value !== "boolean") {
+        diagnostics.push(
+          errorDiag(
+            "E_SCHEMA_TYPE",
+            file,
+            `[macos].${key}: ожидалось булево значение true/false, получено ${describeType(value)}`,
+          ),
+        );
+        continue;
+      }
+      structured.macosBools[key] = value;
+      continue;
+    }
+    if (MACOS_STRING_KEYS.has(key)) {
+      if (typeof value !== "string") {
+        diagnostics.push(
+          errorDiag(
+            "E_SCHEMA_TYPE",
+            file,
+            `[macos].${key}: ожидалась строка, получено ${describeType(value)}`,
+          ),
+        );
+        continue;
+      }
+      structured.macos[key] = value;
+      continue;
+    }
+  }
 }

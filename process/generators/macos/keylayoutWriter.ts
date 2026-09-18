@@ -42,9 +42,12 @@ export function mapSetId(spec: ValidatedSpec): string {
 export function buildKeylayoutText(spec: ValidatedSpec): string[] {
   const setId = mapSetId(spec);
   const maps = buildKeyMaps(spec);
+  // Имя клавиатуры — [macos].keyboard_name (в bundle: имя файла
+  // Resources/<keyboard_name>.keylayout и ключ KLInfo_<keyboard_name>);
+  // id — детерминированный хэш [main].name (стабилен и уникален по V9).
   const out: string[] = [
     ...XML_HEAD_LINES,
-    `<keyboard group="126" id="${computeKeyboardId(spec.main.name)}" name="${escapeXmlAttr(spec.main.name)}" maxout="${computeMaxOut(spec)}">`,
+    `<keyboard group="126" id="${computeKeyboardId(spec.main.name)}" name="${escapeXmlAttr(spec.macos.keyboardName)}" maxout="${computeMaxOut(spec)}">`,
     ...indent(buildLayoutsBlock(setId, MAC_MODIFIERS_ID), 1),
     ...indent(buildModifierMap(MAC_MODIFIERS_ID), 1),
     `<keyMapSet id="${setId}">`,

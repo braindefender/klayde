@@ -205,7 +205,7 @@ describe("registry", () => {
     expect(win.outFile?.endsWith(".klc")).toBe(true);
     const mac = await getGenerator("macos").generate(r.spec, tmp);
     expect(mac.status).toBe("ok");
-    expect(mac.outFile?.endsWith(".keylayout")).toBe(true);
+    expect(mac.outFile?.endsWith(".bundle")).toBe(true);
     const lin = await getGenerator("linux").generate(r.spec, tmp);
     expect(lin.status).toBe("ok");
     expect(lin.outFile?.endsWith("FIXV")).toBe(true);

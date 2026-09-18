@@ -1,13 +1,13 @@
-/** macOS-генератор `.keylayout`: ValidatedSpec → build/macos/<main.name>.keylayout. */
+/** macOS-генератор `.bundle`: ValidatedSpec → build/macos/<bundle_name>.bundle/. */
 import type { ValidatedSpec } from "../../model/spec.ts";
 import type { GenerateResult, OsGenerator } from "../types.ts";
-import { writeKeylayoutFile } from "./keylayoutWriter.ts";
+import { writeBundle } from "./bundle.ts";
 
 export class MacosGenerator implements OsGenerator {
   readonly os = "macos" as const;
 
   async generate(spec: ValidatedSpec, outDir: string): Promise<GenerateResult> {
-    const outFile = await writeKeylayoutFile(spec, outDir);
+    const outFile = await writeBundle(spec, outDir);
     return { status: "ok", outFile };
   }
 }

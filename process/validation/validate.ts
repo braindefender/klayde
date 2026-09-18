@@ -51,6 +51,13 @@ import {
   LIG_NAME_RE,
   LOCALE_ID_RE,
   LOCALE_NAME_RE,
+  MACOS_BUNDLE_ID_DEFAULT,
+  MACOS_ICON_PATH_RE,
+  MACOS_INTENDED_LANGUAGE_DEFAULT,
+  MACOS_INTENDED_LANGUAGE_RE,
+  MACOS_KEYBOARD_NAME_RE,
+  MACOS_VERSION_DEFAULT,
+  MACOS_VERSION_RE,
   MAIN_NAME_MAX_LENGTH,
   MAIN_NAME_MIN_LENGTH,
   MSKLC_LOCALE_ID_DEFAULT,
@@ -63,9 +70,11 @@ import {
 import {
   checkScalarValue,
   cloneCell,
+  deriveMacosKeyboardName,
   isLengthIn,
   isShortId,
   parseCell,
+  resolveIconPath,
   splitGrid,
   suggestLigature,
   type CellParse,
@@ -94,7 +103,37 @@ export async function validateFile(file: string): Promise<FileValidation> {
       spec: null,
     };
   }
-  return validateText(file, text);
+  const result = validateText(file, text);
+  // [macos].icon_path: существование файла относительно каталога схемы.
+  // Формат уже проверен в V3 (чистая validateText); здесь только fs-доступ,
+  // поэтому проверка живёт в validateFile, а не в validateText.
+  const iconPath = result.spec?.macos.iconPath;
+  if (result.spec !== null && iconPath !== undefined) {
+    const resolved = resolveIconPath(file, iconPath);
+    try {
+      const stat = await fs.stat(resolved);
+      if (!stat.isFile()) {
+        result.errors.push(
+          errorDiag(
+            "E_MACOS_ICON_PATH",
+            file,
+            `[macos].icon_path ${JSON.stringify(iconPath)}: ${resolved} — не файл`,
+          ),
+        );
+        return { file, errors: result.errors, warnings: result.warnings, spec: null };
+      }
+    } catch {
+      result.errors.push(
+        errorDiag(
+          "E_MACOS_ICON_PATH",
+          file,
+          `[macos].icon_path ${JSON.stringify(iconPath)}: файл не найден (ищем относительно каталога схемы: ${resolved})`,
+        ),
+      );
+      return { file, errors: result.errors, warnings: result.warnings, spec: null };
+    }
+  }
+  return result;
 }
 
 /** Провалидировать текст схемы (чистая функция, без fs). */
@@ -139,6 +178,10 @@ export function validateText(file: string, text: string): FileValidation {
 
   // V3: скаляры.
   errors.push(...validateScalars(structured, file));
+
+  // V3: опциональный [macos] → резолв с дефолтами.
+  const { macos, diagnostics: macosDiags } = resolveMacos(structured, file);
+  errors.push(...macosDiags);
 
   // V4: лигатуры → карта имя -> кодпоинты.
   const { ligMap, diagnostics: ligDiags } = validateLigatures(structured, file);
@@ -221,6 +264,7 @@ export function validateText(file: string, text: string): FileValidation {
         (structured.msklc["locale_id"] as string | undefined) ??
         MSKLC_LOCALE_ID_DEFAULT,
     },
+    macos,
     layers: {
       base: getMatrix("base"),
       baseShift: getMatrix("base_shift"),
@@ -301,6 +345,169 @@ function validateScalars(
     );
   }
   return out;
+}
+
+// --- V3: [macos] ---
+
+export interface ResolvedMacos {
+  bundleId: string;
+  bundleName: string;
+  bundleVersion: string;
+  keyboardName: string;
+  capslockLanguageSwitchCapable: boolean;
+  iconIsTemplate: boolean;
+  inputSourceId: string;
+  intendedLanguage: string;
+  buildVersion: string;
+  projectName: string;
+  sourceVersion: string;
+  /** Сырое [macos].icon_path (undefined — иконки нет; существование проверяет validateFile). */
+  iconPath: string | undefined;
+}
+
+/**
+ * Резолв опционального [macos] с дефолтами:
+ * bundle_id="com.clayde.layout", bundle_name/project_name=[main].name,
+ * bundle_version/build_version/source_version="1.0",
+ * keyboard_name=буквы [main].short_name (EN-US→ENUS),
+ * booleans=false,
+ * input_source_id=`${bundle_id}.${keyboard_name.toLowerCase()}`,
+ * intended_language="en".
+ * Форматные нарушения — E_MACOS_*; зависимые проверки пропускаются,
+ * если базовые [main]-значения отсутствуют (об их отсутствии уже сообщено в V2).
+ */
+function resolveMacos(
+  structured: {
+    main: Record<string, string>;
+    macos: Record<string, string>;
+    macosBools: Record<string, boolean>;
+  },
+  file: string,
+): { macos: ResolvedMacos; diagnostics: Diagnostic[] } {
+  const diagnostics: Diagnostic[] = [];
+  const { main, macos: raw, macosBools } = structured;
+  const mainName = main["name"];
+  const shortName = main["short_name"];
+
+  const bundleId = raw["bundle_id"] ?? MACOS_BUNDLE_ID_DEFAULT;
+  const bundleName = raw["bundle_name"] ?? mainName ?? "";
+  const projectName = raw["project_name"] ?? mainName ?? "";
+  const keyboardName =
+    raw["keyboard_name"] ??
+    (shortName !== undefined ? deriveMacosKeyboardName(shortName) : "");
+  const bundleVersion = raw["bundle_version"] ?? MACOS_VERSION_DEFAULT;
+  const buildVersion = raw["build_version"] ?? MACOS_VERSION_DEFAULT;
+  const sourceVersion = raw["source_version"] ?? MACOS_VERSION_DEFAULT;
+  const intendedLanguage =
+    raw["intended_language"] ?? MACOS_INTENDED_LANGUAGE_DEFAULT;
+  const inputSourceId =
+    raw["input_source_id"] ??
+    `${bundleId}.${keyboardName.toLowerCase()}`;
+
+  if (bundleId.trim() === "") {
+    diagnostics.push(
+      errorDiag("E_MACOS_BUNDLE_ID", file, `[macos].bundle_id: ожидалась непустая строка`),
+    );
+  }
+  // Производные bundle_name/project_name от битого [main].name не проверяем
+  // (об ошибке первоисточника уже сообщено в V3; каскад ни к чему).
+  const mainNameValid =
+    mainName !== undefined &&
+    isLengthIn(mainName.trim(), MAIN_NAME_MIN_LENGTH, MAIN_NAME_MAX_LENGTH);
+  if (raw["bundle_name"] !== undefined ? bundleName.trim() === "" : mainNameValid && bundleName.trim() === "") {
+    diagnostics.push(
+      errorDiag("E_MACOS_BUNDLE_NAME", file, `[macos].bundle_name: ожидалась непустая строка`),
+    );
+  }
+  if (raw["project_name"] !== undefined ? projectName.trim() === "" : mainNameValid && projectName.trim() === "") {
+    diagnostics.push(
+      errorDiag("E_MACOS_PROJECT_NAME", file, `[macos].project_name: ожидалась непустая строка`),
+    );
+  }
+  const shortValid = shortName !== undefined && isShortId(shortName);
+  const checkKeyboard =
+    raw["keyboard_name"] !== undefined || shortValid;
+  if (checkKeyboard && !MACOS_KEYBOARD_NAME_RE.test(keyboardName)) {
+    const hint =
+      raw["keyboard_name"] === undefined
+        ? ` (выведено из [main].short_name ${JSON.stringify(shortName)} удалением не-букв; short_name обязан содержать хотя бы одну латинскую букву)`
+        : `: ожидались только латинские буквы, 1+ символов`;
+    diagnostics.push(
+      errorDiag(
+        "E_MACOS_KEYBOARD_NAME",
+        file,
+        `[macos].keyboard_name ${JSON.stringify(keyboardName)}${hint}`,
+      ),
+    );
+  }
+  if (inputSourceId.trim() === "") {
+    diagnostics.push(
+      errorDiag("E_MACOS_INPUT_SOURCE_ID", file, `[macos].input_source_id: ожидалась непустая строка`),
+    );
+  }
+  if (!MACOS_INTENDED_LANGUAGE_RE.test(intendedLanguage.trim())) {
+    diagnostics.push(
+      errorDiag(
+        "E_MACOS_INTENDED_LANGUAGE",
+        file,
+        `[macos].intended_language ${JSON.stringify(intendedLanguage)}: ожидались ровно две латинские буквы (напр. "en", "ru")`,
+      ),
+    );
+  }
+  const versionChecks: [string, string, "E_MACOS_BUNDLE_VERSION" | "E_MACOS_BUILD_VERSION" | "E_MACOS_SOURCE_VERSION"][] = [
+    [bundleVersion, "bundle_version", "E_MACOS_BUNDLE_VERSION"],
+    [buildVersion, "build_version", "E_MACOS_BUILD_VERSION"],
+    [sourceVersion, "source_version", "E_MACOS_SOURCE_VERSION"],
+  ];
+  for (const [value, key, code] of versionChecks) {
+    if (!MACOS_VERSION_RE.test(value.trim())) {
+      diagnostics.push(
+        errorDiag(
+          code,
+          file,
+          `[macos].${key} ${JSON.stringify(value)}: ожидались числа, разделённые точками (напр. "1.0", "2.3.4")`,
+        ),
+      );
+    }
+  }
+
+  // icon_path: опционален; формат — непустой путь к .icns
+  // (существование файла проверяет validateFile: там есть доступ к fs,
+  // здесь — чистая validateText без fs).
+  const iconPath = raw["icon_path"];
+  if (iconPath !== undefined) {
+    if (iconPath.trim() === "") {
+      diagnostics.push(
+        errorDiag("E_MACOS_ICON_PATH", file, `[macos].icon_path: ожидалась непустая строка-путь к файлу .icns`),
+      );
+    } else if (!MACOS_ICON_PATH_RE.test(iconPath.trim())) {
+      diagnostics.push(
+        errorDiag(
+          "E_MACOS_ICON_PATH",
+          file,
+          `[macos].icon_path ${JSON.stringify(iconPath)}: ожидался путь к файлу .icns`,
+        ),
+      );
+    }
+  }
+
+  return {
+    macos: {
+      bundleId,
+      bundleName,
+      bundleVersion,
+      keyboardName,
+      capslockLanguageSwitchCapable: macosBools["capslock_language_switch_capable"] ?? false,
+      iconIsTemplate: macosBools["icon_is_template"] ?? false,
+      inputSourceId,
+      intendedLanguage,
+      buildVersion,
+      projectName,
+      sourceVersion,
+      iconPath,
+    },
+    diagnostics,
+  };
 }
 
 // --- V4 ---

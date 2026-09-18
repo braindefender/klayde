@@ -253,6 +253,36 @@ describe("предупреждения", () => {
     ]);
     expect(diags.every((d) => d.severity === "warning")).toBe(true);
   });
+
+  test("V9 напрямую: без macosBundleDir проверки bundle нет", () => {
+    const diags = crossCheck([
+      { file: "a.toml", mainName: "A", mainShortName: "SA", msklcName: "MA" },
+      { file: "b.toml", mainName: "B", mainShortName: "SB", msklcName: "MB" },
+    ]);
+    expect(diags).toEqual([]);
+  });
+});
+
+describe("V9: E_MACOS_DUP_BUNDLE", () => {
+  test("один каталог дважды → ошибка на втором файле", () => {
+    const diags = crossCheck([
+      { file: "x/a.toml", mainName: "A", mainShortName: "SA", msklcName: "MA", macosBundleDir: "build/macos/KB.bundle" },
+      { file: "x/b.toml", mainName: "B", mainShortName: "SB", msklcName: "MB", macosBundleDir: "build/macos/KB.bundle" },
+    ]);
+    expect(diags.map((d) => d.code)).toEqual(["E_MACOS_DUP_BUNDLE"]);
+    expect(diags[0]?.severity).toBe("error");
+    expect(diags[0]?.file).toBe("x/b.toml");
+    expect(diags[0]?.message).toContain("x/a.toml");
+    expect(diags[0]?.message).toContain("build/macos/KB.bundle");
+  });
+
+  test("разные каталоги с тем же bundle_name → не коллизия", () => {
+    const diags = crossCheck([
+      { file: "x/a.toml", mainName: "A", mainShortName: "SA", msklcName: "MA", macosBundleDir: "build/x/macos/KB.bundle" },
+      { file: "y/b.toml", mainName: "B", mainShortName: "SB", msklcName: "MB", macosBundleDir: "build/y/macos/KB.bundle" },
+    ]);
+    expect(diags).toEqual([]);
+  });
 });
 
 describe("V9 через файлы: E_MSKLC_DUP_NAME", () => {

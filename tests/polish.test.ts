@@ -72,7 +72,7 @@ describe("сводка", () => {
     expect(out[out.length - 1]).toBe("done: входов 6, артефактов 6, пропусков 0");
   });
 
-  test("только macos: 6 .keylayout, выход 0", async () => {
+  test("только macos: 6 .bundle, выход 0", async () => {
     const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "klayde-mac-"));
     const { code, out } = await capture(() =>
       runCli(["bun", "index.ts", "--", "--os=macos", `--out=${tmp}`, ...layoutArgs()]),
@@ -80,7 +80,7 @@ describe("сводка", () => {
     expect(code).toBe(0);
     const files = (await fs.readdir(path.join(tmp, "macos"))).sort();
     expect(files.length).toBe(6);
-    expect(files.every((f) => f.endsWith(".keylayout"))).toBe(true);
+    expect(files.every((f) => f.endsWith(".bundle"))).toBe(true);
     expect(out.filter((l) => l.startsWith("ok:")).length).toBe(6);
   });
 

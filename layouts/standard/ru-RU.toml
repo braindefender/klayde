@@ -12,6 +12,19 @@ locale_name = "ru-RU"
 locale_id = "00000419"
 language_names = "Russian (Russia)"
 
+[macos]
+bundle_id = "com.apple.keylayout"
+bundle_name = "Russian (RU)"
+bundle_version = "1.0"
+keyboard_name = "RUKbName"
+capslock_language_switch_capable = false
+icon_is_template = false
+input_source_id = "com.apple.keylayout.rukbname"
+intended_language = "ru"
+build_version = "1.0"
+project_name = "Russian (RU)"
+source_version = "1.0"
+
 [layout]
 base = '''
 1        2        3        4        5        6        7        8        9        0

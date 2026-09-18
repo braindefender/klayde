@@ -2,7 +2,9 @@
 
 ## 1. Общий вид
 
-Файл состоит ровно из четырёх секций верхнего уровня. Порядок секций
+Файл состоит из обязательных секций `[main]`, `[msklc]`, `[layout]`
+и опциональных `[ligatures]`, `[macos]` (весь блок `[macos]` опционален,
+все его поля — тоже). Порядок секций
 рекомендуемый, но не обязательный (кроме того, что `[layout]` идёт последней
 ради читаемости). Неизвестные секции и неизвестные ключи внутри известных
 секций запрещены — это ошибка `E_SCHEMA_UNKNOWN_KEY`, чтобы опечатки
@@ -23,6 +25,21 @@ description = "Universal Layout Ortho Merged"
 [ligatures]
 FatArr = "=>"
 ThinArr = "->"
+
+[macos]
+# все поля опциональны; ниже — дефолты
+bundle_id = "com.clayde.layout"
+bundle_name = "Universal Layout Ortho Merged"  # =[main].name
+bundle_version = "1.0"
+keyboard_name = "ULOM"  # =буквы [main].short_name
+capslock_language_switch_capable = false
+icon_is_template = false
+input_source_id = "com.clayde.layout.ulom"  # =${bundle_id}.${keyboard_name.toLowerCase()}
+intended_language = "en"
+build_version = "1.0"
+project_name = "Universal Layout Ortho Merged"  # =[main].name
+source_version = "1.0"
+# icon_path = "psi.icns"  # без дефолта: путь к .icns от каталога схемы
 
 [layout]
 base = '''
@@ -104,6 +121,26 @@ TOML-парсер к этому моменту уже мог исказить с
 Поле `LANGUAGENAMES` решено через опциональный `[msklc].language_names`
 (см. таблицу выше); для схем без поля действует fallback `= DESCRIPTIONS`,
 расхождение таких файлов с эталоном фиксируется как известное отличие.
+
+## 4.1. Секция `[macos]`
+
+Метаданные macOS-бандла. Вся секция опциональна, все поля — тоже.
+Нарушение формата — свой код `E_MACOS_*` (см. `docs/03-validation.md`, V3).
+
+| Ключ | Тип | Дефолт | Правила |
+| ---- | --- | ------ | ------- |
+| `bundle_id` | string | `com.clayde.layout` | непустая строка |
+| `bundle_name` | string | `[main].name` | непустая строка |
+| `bundle_version` | string | `1.0` | числа, разделённые точками (`1`, `1.0`, `2.3.4`) |
+| `keyboard_name` | string | буквы `[main].short_name` (`EN-US`→`ENUS`) | только латинские буквы, 1+ символов; деривация из `short_name` без букв — `E_MACOS_KEYBOARD_NAME` |
+| `capslock_language_switch_capable` | boolean | `false` | только boolean (поле пока только в схеме) |
+| `icon_is_template` | boolean | `false` | только boolean; иконки `.icns` в bundle пока нет (следующая итерация) |
+| `input_source_id` | string | `${bundle_id}.${keyboard_name.toLowerCase()}` | непустая строка |
+| `intended_language` | string | `en` | ровно две латинские буквы (`en`, `ru`) |
+| `build_version` | string | `1.0` | как `bundle_version` |
+| `project_name` | string | `[main].name` | непустая строка |
+| `source_version` | string | `1.0` | как `bundle_version` |
+| `icon_path` | string | — (иконки нет) | путь к файлу `.icns` относительно каталога TOML-схемы; в bundle копируется байт-в-байт как `Resources/<keyboard_name>.icns` |
 
 ## 5. Секция `[ligatures]`
 

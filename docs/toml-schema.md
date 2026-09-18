@@ -18,6 +18,27 @@ Default: true. Определяет поведение раскладки при
 В нём указываются поля, которые будут отображаться в системных
 настройках, в инсталляторе/деинсталляторе, а также в system-tray.
 
+## Блок `[macos]`
+
+Весь блок опционален, все поля — тоже (дефолты ниже).
+Метаданные macOS-бандла; маппинг на файлы — в `docs/10-macos-keylayout.md`:
+
+```toml
+[macos]
+bundle_id = "com.clayde.layout"          # CFBundleIdentifier
+bundle_name = "My Layout"                # CFBundleName (дефолт =[main].name)
+bundle_version = "1.0"                   # CFBundleVersion (semver)
+keyboard_name = "MyKB"                   # имя .keylayout, <keyboard name>, KLInfo_<name> (дефолт =буквы short_name)
+capslock_language_switch_capable = false # TICapsLockLanguageSwitchCapable
+icon_is_template = false                 # TISIconIsTemplate (иконки .icns пока нет)
+input_source_id = "com.clayde.layout.mykb" # TISInputSourceID (дефолт =${bundle_id}.${keyboard_name.toLowerCase()})
+intended_language = "en"                 # TISIntendedLanguage (две латинские буквы)
+build_version = "1.0"                    # BuildVersion (semver)
+project_name = "My Layout"               # ProjectName (дефолт =[main].name)
+source_version = "1.0"                   # SourceVersion (semver)
+icon_path = "psi.icns"                   # путь к .icns относительно каталога схемы → Resources/<keyboard_name>.icns
+```
+
 ## Блок `[ligatures]`
 
 В этом блоке можно определить **лигатуры** — когда при нажатии одной клавиши

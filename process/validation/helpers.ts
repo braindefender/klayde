@@ -8,6 +8,7 @@
  */
 
 import type { CellValue } from "../model/spec.ts";
+import path from "node:path";
 import {
   CONTROL_RE,
   SHORT_ID_MAX_LENGTH,
@@ -126,6 +127,20 @@ export function levenshtein(a: string, b: string): number {
     }
   }
   return prev[b.length] as number;
+}
+
+/** Дефолт [macos].keyboard_name: буквы [main].short_name (EN-US → ENUS). */
+export function deriveMacosKeyboardName(shortName: string): string {
+  return shortName.replace(/[^A-Za-z]/g, "");
+}
+
+/**
+ * Резолв [macos].icon_path в путь источника иконки: абсолютный — как есть,
+ * относительный — от каталога TOML-схемы (точки входа).
+ */
+export function resolveIconPath(specFile: string, iconPath: string): string {
+  if (path.isAbsolute(iconPath)) return iconPath;
+  return path.join(path.dirname(specFile), iconPath);
 }
 
 /** Проверить, что кодпоинт — Unicode scalar value. */
