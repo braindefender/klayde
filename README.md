@@ -5,7 +5,7 @@ Keyboard Layout Definition Emitter
 Генератор раскладок клавиатуры из декларативных TOML-схем.
 
 Вход: один или несколько файлов из `layouts/`.
-Выход: файлы раскладок под Windows (`.klc`), macOS (`.keylayout`), Linux
+Выход: файлы раскладок под Windows (`.klc`), macOS (`.keylayout`), Linux (XKB)
 
 ## Требования
 
