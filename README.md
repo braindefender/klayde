@@ -58,3 +58,7 @@ bun run start -- --layout="layouts/a.toml" --layout="layouts/b.toml" --out="buil
 bun test           # все тесты (валидаторы, таблицы, golden-дифф с эталонами)
 bun x tsc --noEmit # проверка типов
 ```
+
+## Альтернативы
+
+[Kalamine](https://github.com/OneDeadKey/kalamine)
