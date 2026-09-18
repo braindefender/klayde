@@ -6,7 +6,8 @@
  * замороженные копии схем `tests/fixtures/golden-*.toml`, эталоны —
  * tests/golden/*.klc. Сгенерированные .klc диффаются с эталонами.
  * Допуски — только зафиксированные:
- * - LANGUAGENAMES = DESCRIPTIONS (решение из docs/02, раздел 4);
+ * - LANGUAGENAMES без явного [msklc].language_names = DESCRIPTIONS
+ *   (fallback, решение из docs/02, раздел 4);
  * - COPYRIGHT без пробела после © (TOML `©2026` vs эталон `© 2026`);
  * - KBD inverted-файлов (эталон переставляет суффикс: ULOENI→ULOIEN,
  *   ULOMI→ULOIM, ULORUI→ULOIRU — авторская правка вне TOML);
@@ -76,7 +77,8 @@ function isTolerated(
   wantLines: string[],
   index: number,
 ): boolean {
-  // LANGUAGENAMES = DESCRIPTIONS (docs/02, раздел 4).
+  // LANGUAGENAMES fallback = DESCRIPTIONS, когда [msklc].language_names
+  // не задан (docs/02, раздел 4). Golden-фикстуры поля не содержат.
   if (index > 0 && wantLines[index - 2] === "LANGUAGENAMES") return true;
   // COPYRIGHT: TOML `©2026` vs эталон `© 2026`.
   if (want.startsWith("COPYRIGHT\t\"© 2026 ") && got.startsWith("COPYRIGHT\t\"©2026 ")) {
@@ -263,5 +265,36 @@ describe("структура LAYOUT (без эталона)", () => {
       expect(err).toBeInstanceOf(KlcBuildError);
       expect((err as KlcBuildError).code).toBe("G_CAPS_MODE");
     }
+  });
+});
+
+describe("LANGUAGENAMES из [msklc].language_names", () => {
+  test("fallback без поля: languageNames = main.name", async () => {
+    const spec = await loadSpec("tests/fixtures/golden-english.toml");
+    expect(spec.msklc.languageNames).toBe(spec.main.name);
+    const { buildFooterLines } = await import("../process/generators/windows/klcHeader.ts");
+    const footer = buildFooterLines(spec);
+    const i = footer.indexOf("LANGUAGENAMES");
+    expect(footer[i + 2]).toBe(`0409\t${spec.main.name}`);
+  });
+
+  test("явное поле идёт в LANGUAGENAMES, DESCRIPTIONS остаётся main.name", async () => {
+    const { validateText } = await import("../process/validation/validate.ts");
+    const base = await fs.readFile("tests/fixtures/valid-mini.toml", "utf8");
+    const text = base.replace("[msklc]", '[msklc]\nlanguage_names = "Custom Lang"');
+    // Дубликат ключа в одной секции TOML недопустим, поэтому подменяем
+    // через validateText только если исходник поля не содержит.
+    expect(base).not.toContain("language_names");
+    const r = validateText("custom-lang.toml", text);
+    expect(r.errors).toEqual([]);
+    const spec = r.spec as ValidatedSpec;
+    expect(spec.msklc.languageNames).toBe("Custom Lang");
+    const { buildFooterLines } = await import("../process/generators/windows/klcHeader.ts");
+    const footer = buildFooterLines(spec);
+    const i = footer.indexOf("LANGUAGENAMES");
+    expect(footer[i + 2]).toBe("0409\tCustom Lang");
+    // DESCRIPTIONS при этом остаётся main.name.
+    const d = footer.indexOf("DESCRIPTIONS");
+    expect(footer[d + 2]).toBe(`0409\t${spec.main.name}`);
   });
 });

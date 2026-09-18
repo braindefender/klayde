@@ -32,6 +32,9 @@ export type MsklcErrorCode =
   | "E_MSKLC_COMPANY"
   | "E_MSKLC_COPYRIGHT"
   | "E_MSKLC_DESCRIPTION"
+  | "E_MSKLC_LANGUAGE_NAMES"
+  | "E_MSKLC_LOCALE_NAME"
+  | "E_MSKLC_LOCALE_ID"
   | "E_MSKLC_DUP_NAME";
 
 /** V4: словарь [ligatures]. */

@@ -17,11 +17,11 @@ import { resolveOsOutDir } from "../paths.ts";
 import {
   KEYNAME_EXT_LINES,
   KEYNAME_LINES,
-  SHIFTSTATE_LINES,
+  buildShiftStateLines,
   buildFooterLines,
   buildHeaderLines,
 } from "./klcHeader.ts";
-import { buildLayoutBlock } from "./klcLayout.ts";
+import { altgrPresence, buildLayoutBlock } from "./klcLayout.ts";
 import type { UnicodeTable } from "./unicode.ts";
 import { DEFAULT_UNICODE_TABLE } from "./unicode.ts";
 
@@ -32,6 +32,21 @@ export const LAYOUT_HEAD_LINES: readonly string[] = [
   "//--\t----\t\t----\t----\t----\t----\t----\t----",
   "",
 ];
+
+/** Заголовок LAYOUT под конкретную схему: 6/7 только при непустых altgr-слоях. */
+export function buildLayoutHeadLines(spec: ValidatedSpec): string[] {
+  const { hasAltgr, hasAltgrShift } = altgrPresence(spec);
+  const cols = ["0", "1", "2"];
+  if (hasAltgr) cols.push("6");
+  if (hasAltgrShift) cols.push("7");
+  return [
+    "LAYOUT\t\t;an extra '@' at the end is a dead key",
+    "",
+    `//SC\tVK_\t\tCap\t${cols.join("\t")}`,
+    `//--\t----\t\t----\t${cols.map(() => "----").join("\t")}`,
+    "",
+  ];
+}
 
 export const LIGATURE_HEAD_LINES: readonly string[] = [
   "LIGATURE",
@@ -49,15 +64,16 @@ export function buildKlcText(
   return [
     ...buildHeaderLines(spec),
     "",
-    ...SHIFTSTATE_LINES,
+    ...buildShiftStateLines(spec),
     "",
-    ...LAYOUT_HEAD_LINES,
+    ...buildLayoutHeadLines(spec),
     ...dataRows,
     "",
-    ...LIGATURE_HEAD_LINES,
-    "",
-    ...ligRows,
-    "",
+    // Блок LIGATURE опускается целиком, если лигатур в схеме нет
+    // (как в reference-раскладках standard).
+    ...(ligRows.length > 0
+      ? [...LIGATURE_HEAD_LINES, "", ...ligRows, ""]
+      : [""]),
     ...KEYNAME_LINES,
     "",
     ...KEYNAME_EXT_LINES,

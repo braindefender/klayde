@@ -1,17 +1,22 @@
 /**
  * Шапка и подвал .klc (docs/04, разделы 2–3 и 6; docs/08 — klcHeader.ts).
  *
- * Шапка собирается из метаданных spec ([msklc], [main]); локаль и версия —
- * дефолты до решения из docs/02 (LOCALEID 00000409, en-US).
- * SHIFTSTATE, KEYNAME, KEYNAME_EXT — дословные константы: побайтово
+ * Шапка собирается из метаданных spec ([msklc], [main]); локаль —
+ * из опциональных [msklc].locale_name / locale_id с дефолтами
+ * en-US / 00000409 (docs/02, раздел 4).
+ * SHIFTSTATE динамический: 0/1/2 всегда, 6 — только при непустом слое
+ * altgr, 7 — только при непустом слое altgr_shift (в пустых слоях всё
+ * равно лежали бы одни "-1"; правило по reference-раскладкам standard).
+ * KEYNAME, KEYNAME_EXT — дословные константы: побайтово
  * идентичны во всех 6 эталонах universal-layout (проверено sha1).
- * DESCRIPTIONS — `0409\\t<main.name>` (0409 = суффикс LOCALEID).
- * LANGUAGENAMES до решения пишется равным DESCRIPTIONS (docs/02, раздел 4);
- * отличие от эталона (`...Ortho` без последнего слова) — известное,
- * покрыто допуском golden-теста.
+ * DESCRIPTIONS — `<суффикс LOCALEID>\t<main.name>` (суффикс = последние
+ * 4 символа locale_id, напр. 00000409 → 0409).
+ * LANGUAGENAMES — `[msklc].language_names`, если задано, иначе fallback
+ * на `main.name` (историческое LANGUAGENAMES = DESCRIPTIONS, docs/02, раздел 4).
  */
 
 import type { ValidatedSpec } from "../../model/spec.ts";
+import { altgrPresence } from "./klcLayout.ts";
 
 export const KLC_LOCALEID = "00000409";
 export const KLC_LOCALENAME = "en-US";
@@ -20,6 +25,8 @@ export const KLC_VERSION = "1.0";
 
 /** Шапка KBD..VERSION (без завершающей пустой строки — её добавит сборщик). */
 export function buildHeaderLines(spec: ValidatedSpec): string[] {
+  const localeName = spec.msklc.localeName ?? KLC_LOCALENAME;
+  const localeId = spec.msklc.localeId ?? KLC_LOCALEID;
   return [
     `KBD\t${spec.msklc.name}\t"${spec.msklc.description}"`,
     "",
@@ -27,15 +34,15 @@ export function buildHeaderLines(spec: ValidatedSpec): string[] {
     "",
     `COMPANY\t"${spec.msklc.company}"`,
     "",
-    `LOCALENAME\t"${KLC_LOCALENAME}"`,
+    `LOCALENAME\t"${localeName}"`,
     "",
-    `LOCALEID\t"${KLC_LOCALEID}"`,
+    `LOCALEID\t"${localeId}"`,
     "",
     `VERSION\t${KLC_VERSION}`,
   ];
 }
 
-/** SHIFTSTATE — дословная константа из эталонов. */
+/** SHIFTSTATE для universal-эталонов (полные колонки 0/1/2/6/7). */
 export const SHIFTSTATE_LINES: readonly string[] = [
   "SHIFTSTATE",
   "",
@@ -45,6 +52,21 @@ export const SHIFTSTATE_LINES: readonly string[] = [
   "6\t//Column 7 :       Ctrl Alt",
   "7\t//Column 8 : Shft  Ctrl Alt",
 ];
+
+/** SHIFTSTATE под конкретную схему: 6/7 только при непустых altgr-слоях. */
+export function buildShiftStateLines(spec: ValidatedSpec): string[] {
+  const { hasAltgr, hasAltgrShift } = altgrPresence(spec);
+  const lines = [
+    "SHIFTSTATE",
+    "",
+    "0\t//Column 4",
+    "1\t//Column 5 : Shft",
+    "2\t//Column 6 :       Ctrl",
+  ];
+  if (hasAltgr) lines.push("6\t//Column 7 :       Ctrl Alt");
+  if (hasAltgrShift) lines.push("7\t//Column 8 : Shft  Ctrl Alt");
+  return lines;
+}
 
 /** KEYNAME — дословная константа (идентична в 6 эталонах). */
 export const KEYNAME_LINES: readonly string[] = [
@@ -136,14 +158,16 @@ export const KEYNAME_EXT_LINES: readonly string[] = [
  * завершающий CRLF добавит сборщик через пустую строку).
  */
 export function buildFooterLines(spec: ValidatedSpec): string[] {
+  const localeId = spec.msklc.localeId ?? KLC_LOCALEID;
+  const suffix = localeId.slice(-4);
   return [
     "DESCRIPTIONS",
     "",
-    `${KLC_LOCALE_SUFFIX}\t${spec.main.name}`,
+    `${suffix}\t${spec.main.name}`,
     "",
     "LANGUAGENAMES",
     "",
-    `${KLC_LOCALE_SUFFIX}\t${spec.main.name}`,
+    `${suffix}\t${spec.msklc.languageNames}`,
     "",
     "ENDKBD",
   ];

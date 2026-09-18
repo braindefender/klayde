@@ -173,6 +173,7 @@ describe("фикстуры: ровно ожидаемые коды", () => {
     ["e_msklc_company.toml", ["E_MSKLC_COMPANY"]],
     ["e_msklc_copyright.toml", ["E_MSKLC_COPYRIGHT"]],
     ["e_msklc_description.toml", ["E_MSKLC_DESCRIPTION"]],
+    ["e_msklc_language_names.toml", ["E_MSKLC_LANGUAGE_NAMES"]],
     ["e_lig_name.toml", ["E_LIG_NAME"]],
     ["e_lig_reserved.toml", ["E_LIG_RESERVED"]],
     ["e_lig_length.toml", ["E_LIG_LENGTH"]],

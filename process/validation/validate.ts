@@ -49,8 +49,12 @@ import {
   LIG_MAX_CODES,
   LIG_MIN_CODES,
   LIG_NAME_RE,
+  LOCALE_ID_RE,
+  LOCALE_NAME_RE,
   MAIN_NAME_MAX_LENGTH,
   MAIN_NAME_MIN_LENGTH,
+  MSKLC_LOCALE_ID_DEFAULT,
+  MSKLC_LOCALE_NAME_DEFAULT,
   MSKLC_TEXT_FIELDS,
   RESERVED_LIG,
   TRANS_PAIRS,
@@ -203,6 +207,19 @@ export function validateText(file: string, text: string): FileValidation {
       company: structured.msklc["company"] as string,
       copyright: structured.msklc["copyright"] as string,
       description: structured.msklc["description"] as string,
+      // Опциональное [msklc].language_names: если не задано — fallback
+      // на [main].name (историческое LANGUAGENAMES = DESCRIPTIONS).
+      languageNames:
+        (structured.msklc["language_names"] as string | undefined) ??
+        (structured.main["name"] as string),
+      // Опциональные [msklc].locale_name / locale_id с дефолтами
+      // en-US / 00000409 (docs/02, раздел 4).
+      localeName:
+        (structured.msklc["locale_name"] as string | undefined) ??
+        MSKLC_LOCALE_NAME_DEFAULT,
+      localeId:
+        (structured.msklc["locale_id"] as string | undefined) ??
+        MSKLC_LOCALE_ID_DEFAULT,
     },
     layers: {
       base: getMatrix("base"),
@@ -264,6 +281,24 @@ function validateScalars(
         errorDiag(code, file, `[msklc].${key}: ожидалась непустая строка`),
       );
     }
+  }
+  if (msklc["locale_name"] !== undefined && !LOCALE_NAME_RE.test(msklc["locale_name"].trim())) {
+    out.push(
+      errorDiag(
+        "E_MSKLC_LOCALE_NAME",
+        file,
+        `[msklc].locale_name ${JSON.stringify(msklc["locale_name"])}: ожидался BCP47-тег вида en-US / ru-RU (латиница, дефис-группы)`,
+      ),
+    );
+  }
+  if (msklc["locale_id"] !== undefined && !LOCALE_ID_RE.test(msklc["locale_id"].trim())) {
+    out.push(
+      errorDiag(
+        "E_MSKLC_LOCALE_ID",
+        file,
+        `[msklc].locale_id ${JSON.stringify(msklc["locale_id"])}: ожидались ровно 8 hex-цифр (напр. 00000409, 00000419)`,
+      ),
+    );
   }
   return out;
 }

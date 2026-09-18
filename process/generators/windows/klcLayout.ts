@@ -1,18 +1,25 @@
 /**
  * Секции LAYOUT и LIGATURE (docs/06, разделы 2–4; docs/08 — klcLayout.ts).
  *
- * Правила, обратный инжиниринг по 6 эталонам universal-layout:
- * - порядок строк — LAYOUT_SC_ORDER (SC 28 в эталонах отсутствует);
- * - строка: `SC\\tVK\\t\\tCap\\tc0\\tc1\\tc2\\tc6\\tc7\\t\\t// <имена>`;
+ * Правила, обратный инжиниринг по 6 эталонам universal-layout +
+ * reference-раскладкам standard (data/reference/windows):
+ * - порядок строк — LAYOUT_SC_ORDER (27, 28, 29, 2b по reference);
+ * - набор колонок динамический: 0/1/2 всегда, 6 — только если слой
+ *   altgr содержит хотя бы одну не-@None ячейку, 7 — только если слой
+ *   altgr_shift содержит хотя бы одну не-@None ячейку (иначе в них
+ *   всё равно лежали бы одни "-1");
+ * - строка: `SC\tVK\t\tCap\t<c0>\t<c1>\t<c2>[\t<c6>[\t<c7>]\t\t// <имена>`;
  *   после VK две табуляции при длине имени ≤ 5, иначе одна;
  * - `SC 39` (SPACE): c7 всегда `-1` (docs/06, раздел 3);
- * - клавиша, у которой c0/c1/c6/c7 и пара caps — все `-1`, пропускается
- *   целиком (так в эталонах отсутствует SC 28: все слои `@None`);
- * - комментарий основной строки — имена 5 колонок через `, `:
+ * - клавиша, у которой c0/c1 и все присутствующие c6/c7, а также пара
+ *   caps — все `-1`, пропускается целиком (так в эталонах отсутствует
+ *   SC 28: все слои `@None`);
+ * - комментарий основной строки — имена присутствующих колонок через `, `:
  *   `-1` → `<none>`, `%%` → `<null>` (эталон не раскрывает лигатуры
  *   в комментариях основных строк), `20bd` → `<null>` (таблица MSKLC
- *   старше ₽); особый случай DECIMAL (c2/c6/c7 все `-1`) — пустые имена;
- * - расширение SGCap: `-1\\t-1\\t0\\tcaps\\tcapsShift\\t\\t// <n1>, <n2>`;
+ *   старше ₽); особый случай DECIMAL (SC 53, все c2/c6/c7 — `-1`)
+ *   — пустые имена вместо `<none>` (концевой пробел подрезается);
+ * - расширение SGCap: `-1\t-1\t0\tcaps\tcapsShift\t\t// <n1>, <n2>`;
  *   лигатура в SGCap-расширении — G_CAPS_LIGATURE (docs/06, раздел 3);
  * - Cap-оптимизация для caps (включая @Trans, уже резолвленный
  *   в caps←base, caps_shift←base_shift): прозрачный
@@ -26,7 +33,7 @@
  *   CapsLock затрагивает только буквы, слои обязаны быть связаны
  *   с base — swap/@Trans).
  * - строка LIGATURE: `VK\\t\\tMod#\\tкоды\\t\\t// <имена через " + ">`;
- *   Mod#: s0→0, s1→1, s6→3, s7→4 (индекс в SHIFTSTATE, docs/04, раздел 3).
+ *   Mod# — индекс состояния в SHIFTSTATE (при полных колонках 0/1/3/4).
  */
 
 import type { CellValue, ValidatedSpec } from "../../model/spec.ts";
@@ -79,6 +86,35 @@ export interface LayoutBlock {
 /** Паддинг после VK: две табуляции при длине ≤ 5, иначе одна (по эталонам). */
 function vkPad(vk: string): string {
   return vk.length <= 5 ? "\t\t" : "\t";
+}
+
+/** Слой состоит только из @None (все ячейки kind "none"). */
+export function isLayerEmpty(layer: CellValue[][]): boolean {
+  return layer.every((row) => row.every((cell) => cell.kind === "none"));
+}
+
+/**
+ * Какие AltGr-колонки реально нужны в LAYOUT/SHIFTSTATE.
+ * Пустой слой (весь @None) колонку не получает — в ней всё равно
+ * лежали бы одни "-1" (правило по reference-раскладкам standard).
+ */
+export function altgrPresence(spec: ValidatedSpec): {
+  hasAltgr: boolean;
+  hasAltgrShift: boolean;
+} {
+  return {
+    hasAltgr: !isLayerEmpty(spec.layers.altgr),
+    hasAltgrShift: !isLayerEmpty(spec.layers.altgrShift),
+  };
+}
+
+/** Состояния SHIFTSTATE для схемы: 0/1/2 всегда + 6/7 при непустых слоях. */
+export function shiftStateIds(spec: ValidatedSpec): number[] {
+  const { hasAltgr, hasAltgrShift } = altgrPresence(spec);
+  const ids = [0, 1, 2];
+  if (hasAltgr) ids.push(6);
+  if (hasAltgrShift) ids.push(7);
+  return ids;
 }
 
 /**
@@ -144,6 +180,9 @@ export function buildLayoutBlock(
 ): LayoutBlock {
   const dataRows: string[] = [];
   const ligatures: LigatureEntry[] = [];
+  const { hasAltgr, hasAltgrShift } = altgrPresence(spec);
+  // Mod# — индекс состояния в динамическом SHIFTSTATE.
+  const modOf = (stateId: number): number => shiftStateIds(spec).indexOf(stateId);
 
   for (const sc of LAYOUT_SC_ORDER) {
     const pos = positionBySc(sc);
@@ -176,7 +215,8 @@ export function buildLayoutBlock(
     const t2 = pos.ctrl;
     const t6 = layoutValueText(s6, table);
     // SC 39 (SPACE): c7 всегда -1, независимо от сетки.
-    const t7 = sc === "39" ? "-1" : layoutValueText(s7, table);
+    const t7raw = layoutValueText(s7, table);
+    const t7 = sc === "39" ? "-1" : t7raw;
 
     // Cap-колонка и пара caps для SGCap-позиций.
     // Слои caps/caps_shift обязательны (включая @Trans, уже резолвленный
@@ -236,22 +276,23 @@ export function buildLayoutBlock(
       ? [layoutValueText(capsPair[0], table), layoutValueText(capsPair[1], table)]
       : ["-1", "-1"];
 
-    // Полностью пустая клавиша — пропустить, как SC 28 в эталонах:
-    // все -1 в base, а caps либо отсутствует (Cap 0/1), либо тоже -1.
+    // Полностью пустая клавиша — пропустить, как SC 28 в universal-эталонах:
+    // все -1 в base и присутствующих c6/c7, а caps либо отсутствует
+    // (Cap 0/1), либо тоже -1.
     if (
-      t0 === "-1" && t1 === "-1" && t6 === "-1" && t7 === "-1" &&
+      t0 === "-1" && t1 === "-1" && (!hasAltgr || t6 === "-1") && (!hasAltgrShift || t7 === "-1") &&
       (capsPair === null || (capsTexts[0] === "-1" && capsTexts[1] === "-1"))
     ) {
       continue;
     }
 
     // Записи LIGATURE. Порядок обхода (scancode, затем Mod# по
-    // возрастанию 0,1,3,4) уже совпадает с эталоном.
+    // возрастанию) уже совпадает с эталоном.
     const stateCells: [CellValue, string, number][] = [
-      [s0, t0, 0],
-      [s1, t1, 1],
-      [s6, t6, 3],
-      [s7, t7, 4],
+      [s0, t0, modOf(0)],
+      [s1, t1, modOf(1)],
+      [s6, t6, modOf(6)],
+      [s7, t7, modOf(7)],
     ];
     for (const [value, text, mod] of stateCells) {
       if (value.kind !== "ligature" || text !== "%%") continue;
@@ -263,8 +304,11 @@ export function buildLayoutBlock(
       });
     }
 
+    const valueCols = [t0, t1, t2];
+    if (hasAltgr) valueCols.push(t6);
+    if (hasAltgrShift) valueCols.push(t7);
     dataRows.push(
-      `${sc}\t${pos.vk}${vkPad(pos.vk)}${cap}\t${t0}\t${t1}\t${t2}\t${t6}\t${t7}\t\t// ${mainRowComment(table, [s0, s1], t2, [s6, s7], t7)}`,
+      `${sc}\t${pos.vk}${vkPad(pos.vk)}${cap}\t${valueCols.join("\t")}\t\t// ${mainRowComment(sc, table, [s0, s1], t2, [s6, s7], t7, hasAltgr, hasAltgrShift)}`,
     );
     if (capsPair !== null) {
       const [c0, c1] = capsTexts;
@@ -293,25 +337,30 @@ export function buildLayoutBlock(
   };
 }
 
-/** Комментарий основной строки: имена c0,c1,c2,c6,c7 через ", ". */
+/** Комментарий основной строки: имена присутствующих колонок через ", ". */
 function mainRowComment(
+  sc: string,
   table: UnicodeTable,
   base: [CellValue, CellValue],
   ctrlText: string,
   altgr: [CellValue, CellValue],
   t7: string,
+  hasAltgr: boolean,
+  hasAltgrShift: boolean,
 ): string {
   const names = [
     mainCellName(table, base[0]),
     mainCellName(table, base[1]),
     ctrlText === "-1" ? "<none>" : ctrlName(ctrlText),
-    mainCellName(table, altgr[0]),
-    // t7 === "-1": естественный (@None) или форсированный (SPACE) — оба <none>.
-    t7 === "-1" ? "<none>" : mainCellName(table, altgr[1]),
   ];
-  // Особый случай DECIMAL (эталон): c2/c6/c7 все -1 → пустые имена.
-  if (names[2] === "<none>" && names[3] === "<none>" && names[4] === "<none>") {
-    return [names[0], names[1], "", "", ""].join(", ");
+  if (hasAltgr) names.push(mainCellName(table, altgr[0]));
+  // t7 === "-1": естественный (@None) или форсированный (SPACE) — оба <none>.
+  if (hasAltgrShift) names.push(t7 === "-1" ? "<none>" : mainCellName(table, altgr[1]));
+  // Особый случай DECIMAL (SC 53, эталон): все присутствующие c2/c6/c7 — "-1"
+  // → пустые имена вместо `<none>` (концевой пробел подрезается,
+  // reference хранит комментарий без хвостового пробела).
+  if (sc === "53" && names.slice(2).every((n) => n === "<none>")) {
+    return [names[0], names[1], ...names.slice(2).map(() => "")].join(", ").trimEnd();
   }
   return names.join(", ");
 }

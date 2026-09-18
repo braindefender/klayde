@@ -21,6 +21,9 @@ export interface ValidatedSpec {
     company: string;
     copyright: string;
     description: string;
+    languageNames: string;
+    localeName: string;
+    localeId: string;
   };
   layers: {
     base: CellValue[][];

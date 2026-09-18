@@ -67,11 +67,21 @@ export const TRANS_PAIRS = [
   ["caps_shift", "base_shift"],
 ] as const;
 
+/** Дефолты опциональных [msklc].locale_name / locale_id (docs/02, раздел 4). */
+export const MSKLC_LOCALE_NAME_DEFAULT = "en-US";
+export const MSKLC_LOCALE_ID_DEFAULT = "00000409";
+
+/** BCP47 вида en-US / ru-RU: 2–8 букв, затем дефис-группы. */
+export const LOCALE_NAME_RE = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{2,8})*$/;
+/** LOCALEID: ровно 8 hex-цифр (напр. 00000409, 00000419). */
+export const LOCALE_ID_RE = /^[0-9a-fA-F]{8}$/;
+
 /** Текстовые поля [msklc] с кодами пустого значения (docs/03, V3). */
 export const MSKLC_TEXT_FIELDS: readonly (readonly [string, MsklcErrorCode])[] = [
   ["company", "E_MSKLC_COMPANY"],
   ["copyright", "E_MSKLC_COPYRIGHT"],
   ["description", "E_MSKLC_DESCRIPTION"],
+  ["language_names", "E_MSKLC_LANGUAGE_NAMES"],
 ];
 
 // --- V1–V2: структура TOML-документа (docs/03) ---
@@ -88,4 +98,7 @@ export const MSKLC_KEYS = new Set([
   "company",
   "copyright",
   "description",
+  "language_names",
+  "locale_name",
+  "locale_id",
 ]);

@@ -32,10 +32,9 @@ VERSION	1.0
 ```
 
 `KBD` — значение `[msklc].name`. Вторая колонка в кавычках —
-`[msklc].description`. Остальное — прямое копирование полей `[msklc]`,
-`LOCALENAME`/`LOCALEID`/`VERSION` в примерах константны. Откуда брать
-локаль — открытый вопрос (см. `docs/02-toml-schema.md`, раздел 4):
-предложение — новые опциональные ключи с дефолтами `en-US`/`00000409`/`1.0`.
+`[msklc].description`. `LOCALENAME`/`LOCALEID` — из опциональных
+`[msklc].locale_name` / `[msklc].locale_id` с дефолтами `en-US`/`00000409`
+(см. `docs/02-toml-schema.md`, раздел 4); `VERSION` — константа `1.0`.
 
 ## 3. `SHIFTSTATE` (факт)
 
@@ -154,12 +153,14 @@ LANGUAGENAMES
 ENDKBD
 ```
 
-`DESCRIPTIONS` — `main.name`. `LANGUAGENAMES` в эталонах — `main.name` без
+`DESCRIPTIONS` — `main.name`. `LANGUAGENAMES` — `[msklc].language_names`,
+если задано, иначе fallback на `main.name`. В эталонах — `main.name` без
 последнего слова (`Merged`/`English`/`Russian` отброшены, остаётся
 `Universal Layout Ortho`). Это эвристика, которую генератор **не должен**
-повторять молча: см. раздел 4 схемы — нужен явный источник имени языка.
-До решения — писать `LANGUAGENAMES` равным `DESCRIPTIONS` и фиксировать
-отличие от эталона в тестах как известное.
+повторять молча: явный источник имени языка — `[msklc].language_names`.
+Для схем без поля действует исторический fallback (`LANGUAGENAMES` =
+`DESCRIPTIONS`), отличие таких файлов от эталона фиксируется в тестах
+как известное.
 
 ## 7. Что MSKLC проверяет при загрузке (практические следствия)
 

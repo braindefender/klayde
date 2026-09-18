@@ -32,9 +32,9 @@ describe("positions: 50 записей", () => {
     expect(new Set(POSITIONS.map((p) => p.sc)).size).toBe(50);
   });
 
-  test("баланс зон: 31 SGCap + 19 Cap0 (r5c8 — SGCap)", () => {
-    expect(POSITIONS.filter((p) => p.cap === "SGCap").length).toBe(31);
-    expect(POSITIONS.filter((p) => p.cap === "Cap0").length).toBe(19);
+  test("баланс зон: 34 SGCap + 16 Cap0 (r5c2/c5/c6/c8 — SGCap, буквы ё/х/ъ/э)", () => {
+    expect(POSITIONS.filter((p) => p.cap === "SGCap").length).toBe(34);
+    expect(POSITIONS.filter((p) => p.cap === "Cap0").length).toBe(16);
   });
 
   test("Ctrl-константы: только -1/001b/001c/001d/0020", () => {
@@ -72,9 +72,9 @@ describe("positions: 50 записей", () => {
       [4, 5, "30", "B", "SGCap", "-1"], [4, 6, "31", "N", "SGCap", "-1"],
       [4, 7, "32", "M", "SGCap", "-1"], [4, 8, "33", "OEM_COMMA", "SGCap", "-1"],
       [4, 9, "34", "OEM_PERIOD", "SGCap", "-1"], [4, 10, "35", "OEM_2", "SGCap", "-1"],
-      [5, 1, "39", "SPACE", "Cap0", "0020"], [5, 2, "29", "OEM_3", "Cap0", "-1"],
+      [5, 1, "39", "SPACE", "Cap0", "0020"], [5, 2, "29", "OEM_3", "SGCap", "-1"],
       [5, 3, "0c", "OEM_MINUS", "Cap0", "-1"], [5, 4, "0d", "OEM_PLUS", "Cap0", "-1"],
-      [5, 5, "1a", "OEM_4", "Cap0", "001b"], [5, 6, "1b", "OEM_6", "Cap0", "001d"],
+      [5, 5, "1a", "OEM_4", "SGCap", "001b"], [5, 6, "1b", "OEM_6", "SGCap", "001d"],
       [5, 7, "2b", "OEM_5", "Cap0", "001c"], [5, 8, "28", "OEM_7", "SGCap", "-1"],
       [5, 9, "56", "OEM_102", "Cap0", "001c"], [5, 10, "53", "DECIMAL", "Cap0", "-1"],
     ];
@@ -104,11 +104,11 @@ describe("LAYOUT_SC_ORDER (docs/05, раздел 3)", () => {
     expect(LAYOUT_SC_ORDER.indexOf("56")).toBeLessThan(LAYOUT_SC_ORDER.indexOf("53"));
   });
 
-  test("дословный порядок эталона", () => {
+  test("дословный порядок reference (27,28,29,2b; 56 перед 53)", () => {
     expect(LAYOUT_SC_ORDER.join(",")).toBe(
       "02,03,04,05,06,07,08,09,0a,0b,0c,0d," +
         "10,11,12,13,14,15,16,17,18,19,1a,1b," +
-        "1e,1f,20,21,22,23,24,25,26,27,29,2b,28," +
+        "1e,1f,20,21,22,23,24,25,26,27,28,29,2b," +
         "2c,2d,2e,2f,30,31,32,33,34,35,39,56,53",
     );
   });

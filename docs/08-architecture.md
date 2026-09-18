@@ -67,7 +67,7 @@ type CellValue =
 interface ValidatedSpec {
   file: string;
   main: { name: string; shortName: string; capsIsShift: boolean };
-  msklc: { name: string; company: string; copyright: string; description: string };
+  msklc: { name: string; company: string; copyright: string; description: string; languageNames: string };
   layers: { base: CellValue[][]; baseShift: CellValue[][];
             altgr: CellValue[][]; altgrShift: CellValue[][];
             caps: CellValue[][]; capsShift: CellValue[][] };
@@ -115,7 +115,7 @@ interface OsGenerator {
 8. Кодировка вне BMP и лигатуры в `caps` — честные ошибки генерации,
    а не молчаливые искажения.
 9. Открытые вопросы с дефолтами: `LOCALEID/LOCALENAME` (`00000409/en-US`),
-   `LANGUAGENAMES` (= `DESCRIPTIONS` до решения), точная граница
+   `LANGUAGENAMES` (`[msklc].language_names`, fallback `= DESCRIPTIONS`), точная граница
    `short_name` (8). Каждый помечен кодом и тестом как известный риск.
 
 ## 5. План внедрения (по фазам, без кода)
