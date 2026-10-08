@@ -62,11 +62,11 @@ export type UnicodeErrorCode = "E_UNICODE";
 
 /** V3: скаляры [macos] (все поля опциональны, проверяются при наличии/дефолте). */
 export type MacosErrorCode =
-  | "E_MACOS_BUNDLE_ID"
+  | "E_MACOS_BUNDLE_ID" // retired: bundle_id убран из схемы (хардкод), остался для совместимости кода
   | "E_MACOS_BUNDLE_NAME"
   | "E_MACOS_BUNDLE_VERSION"
   | "E_MACOS_KEYBOARD_NAME"
-  | "E_MACOS_INPUT_SOURCE_ID"
+  | "E_MACOS_INPUT_SOURCE_ID" // retired: input_source_id убран из схемы (хардкод), остался для совместимости кода
   | "E_MACOS_INTENDED_LANGUAGE"
   | "E_MACOS_BUILD_VERSION"
   | "E_MACOS_PROJECT_NAME"

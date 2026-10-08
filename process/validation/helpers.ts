@@ -135,6 +135,25 @@ export function deriveMacosKeyboardName(shortName: string): string {
 }
 
 /**
+ * Сравнить версии вида "1.0", "2.3.4" численно по компонентам
+ * (недостающие хвосты = 0: "2" == "2.0" < "2.0.1").
+ * Возвращает -1 / 0 / 1. Некорректный формат не ожидается
+ * (валидатор проверяет MACOS_VERSION_RE до вызова).
+ */
+export function compareMacosVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x < y) return -1;
+    if (x > y) return 1;
+  }
+  return 0;
+}
+
+/**
  * Резолв [macos].icon_path в путь источника иконки: абсолютный — как есть,
  * относительный — от каталога TOML-схемы (точки входа).
  */

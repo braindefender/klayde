@@ -10,7 +10,6 @@ copyright = "©2026 braindefender"
 description = "Universal Layout Ortho Russian"
 
 [macos]
-bundle_id = "com.braindefender.universal-layout"
 bundle_name = "Universal Layout Ortho Russian"
 icon_is_template = true
 icon_path = "psi.icns"

@@ -105,15 +105,13 @@ export const MSKLC_KEYS = new Set([
 
 // --- [macos]: опциональная секция метаданных bundle (все поля опциональны) ---
 
-/** Допустимые ключи [macos]. */
+/** Допустимые ключи [macos] (bundle_id/input_source_id убраны: хардкод в валидаторе). */
 export const MACOS_KEYS = new Set([
-  "bundle_id",
   "bundle_name",
   "bundle_version",
   "keyboard_name",
   "capslock_language_switch_capable",
   "icon_is_template",
-  "input_source_id",
   "intended_language",
   "build_version",
   "project_name",
@@ -123,11 +121,9 @@ export const MACOS_KEYS = new Set([
 
 /** Строковые ключи [macos] (остальные два — boolean). */
 export const MACOS_STRING_KEYS = new Set([
-  "bundle_id",
   "bundle_name",
   "bundle_version",
   "keyboard_name",
-  "input_source_id",
   "intended_language",
   "build_version",
   "project_name",
@@ -141,9 +137,17 @@ export const MACOS_BOOL_KEYS = new Set([
   "icon_is_template",
 ]);
 
-/** Дефолт [macos].bundle_id. */
-export const MACOS_BUNDLE_ID_DEFAULT = "com.clayde.layout";
-/** Дефолт версий bundle/build/source: числа, разделённые точками. */
+/**
+ * Префикс хардкодных идентификаторов macOS (только [a-z.]):
+ * CFBundleIdentifier = `${PREFIX}.${short_lower}`,
+ * TISInputSourceID = `${PREFIX}.${short_lower}.${short_lower}`.
+ */
+export const MACOS_BUNDLE_ID_PREFIX = "com.klayde.keyboardlayout";
+/** Дефолт [macos].bundle_version (CFBundleVersion): минимум 2.0. */
+export const MACOS_BUNDLE_VERSION_DEFAULT = "2.0";
+/** Минимальный CFBundleVersion: ниже — E_MACOS_BUNDLE_VERSION. */
+export const MACOS_BUNDLE_VERSION_MIN = "2.0";
+/** Дефолт версий build/source: числа, разделённые точками. */
 export const MACOS_VERSION_DEFAULT = "1.0";
 /** Дефолт [macos].intended_language. */
 export const MACOS_INTENDED_LANGUAGE_DEFAULT = "en";

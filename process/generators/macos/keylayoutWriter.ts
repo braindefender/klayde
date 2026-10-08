@@ -12,6 +12,9 @@ import path from "node:path";
 import type { ValidatedSpec } from "../../model/spec.ts";
 import { resolveOsOutDir } from "../paths.ts";
 import {
+  MAC_MAIN_SET_ID,
+  MAC_MODIFIERS_ID,
+  MAC_STUB_SET_ID,
   MAP6_ROWS,
   MAP7_ROWS,
   XML_HEAD_LINES,
@@ -21,34 +24,49 @@ import {
 } from "./keylayoutHeader.ts";
 import { buildKeyMaps, computeMaxOut, escapeXmlAttr } from "./keylayoutLayout.ts";
 
-export const MAC_MODIFIERS_ID = "mods";
+export { MAC_MAIN_SET_ID, MAC_MODIFIERS_ID, MAC_STUB_SET_ID };
 
-/** id раскладки: детерминированный FNV-1a от имени → отрицательный int32. */
+/**
+ * id раскладки: детерминированный FNV-1a от имени → маленький
+ * отрицательный int (диапазон −1…−32000, как у Ukelele:
+ * upstream `-24174`, `-15810`, эталон `-17950`).
+ * Раньше был полный int32 (до −2e9) — macOS/Ukelele ждут маленькое число.
+ */
 export function computeKeyboardId(name: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < name.length; i++) {
     hash ^= name.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
-  return -((hash >>> 0) % 2147483646 + 1);
+  return -((hash >>> 0) % 32000 + 1);
 }
 
-/** mapSet id из short_name (одно слово, уникален). */
-export function mapSetId(spec: ValidatedSpec): string {
-  return spec.main.shortName.toLowerCase();
+/**
+ * mapSet id — константа upstream `16c` (едина для всех раскладок,
+ * как в обоих `Universal Layout *.keylayout`).
+ * Оставлена функцией для совместимости тестов/вызывателей.
+ */
+export function mapSetId(_spec: ValidatedSpec): string {
+  return MAC_MAIN_SET_ID;
+}
+
+/** stub keyMapSet id — константа upstream `994`. */
+export function stubSetId(_spec?: ValidatedSpec): string {
+  return MAC_STUB_SET_ID;
 }
 
 /** Собрать полный текст `.keylayout` (строки; CRLF ставит сериализатор). */
 export function buildKeylayoutText(spec: ValidatedSpec): string[] {
   const setId = mapSetId(spec);
+  const stubId = stubSetId(spec);
   const maps = buildKeyMaps(spec);
   // Имя клавиатуры — [macos].keyboard_name (в bundle: имя файла
   // Resources/<keyboard_name>.keylayout и ключ KLInfo_<keyboard_name>);
-  // id — детерминированный хэш [main].name (стабилен и уникален по V9).
+  // id — детерминированный хэш [main].name (стабилен, маленький, как у Ukelele).
   const out: string[] = [
     ...XML_HEAD_LINES,
     `<keyboard group="126" id="${computeKeyboardId(spec.main.name)}" name="${escapeXmlAttr(spec.macos.keyboardName)}" maxout="${computeMaxOut(spec)}">`,
-    ...indent(buildLayoutsBlock(setId, MAC_MODIFIERS_ID), 1),
+    ...indent(buildLayoutsBlock(setId, stubId, MAC_MODIFIERS_ID), 1),
     ...indent(buildModifierMap(MAC_MODIFIERS_ID), 1),
     `<keyMapSet id="${setId}">`,
   ];
@@ -60,7 +78,7 @@ export function buildKeylayoutText(spec: ValidatedSpec): string[] {
     out.push(indentLine("</keyMap>", 2));
   }
   out.push(`</keyMapSet>`);
-  out.push(...indent(buildStubSet(setId), 1));
+  out.push(...indent(buildStubSet(setId, stubId), 1));
   out.push("</keyboard>");
   return out;
 }

@@ -51,7 +51,9 @@ import {
   LIG_NAME_RE,
   LOCALE_ID_RE,
   LOCALE_NAME_RE,
-  MACOS_BUNDLE_ID_DEFAULT,
+  MACOS_BUNDLE_ID_PREFIX,
+  MACOS_BUNDLE_VERSION_DEFAULT,
+  MACOS_BUNDLE_VERSION_MIN,
   MACOS_ICON_PATH_RE,
   MACOS_INTENDED_LANGUAGE_DEFAULT,
   MACOS_INTENDED_LANGUAGE_RE,
@@ -70,6 +72,7 @@ import {
 import {
   checkScalarValue,
   cloneCell,
+  compareMacosVersions,
   deriveMacosKeyboardName,
   isLengthIn,
   isShortId,
@@ -367,11 +370,14 @@ export interface ResolvedMacos {
 
 /**
  * Резолв опционального [macos] с дефолтами:
- * bundle_id="com.clayde.layout", bundle_name/project_name=[main].name,
- * bundle_version/build_version/source_version="1.0",
+ * bundle_name/project_name=[main].name,
+ * bundle_version="2.0" (минимум 2.0, ниже — E_MACOS_BUNDLE_VERSION),
+ * build_version/source_version="1.0",
  * keyboard_name=буквы [main].short_name (EN-US→ENUS),
  * booleans=false,
- * input_source_id=`${bundle_id}.${keyboard_name.toLowerCase()}`,
+ * bundle_id/input_source_id — ХАРДКОД, в TOML запрещены
+ * (E_SCHEMA_UNKNOWN_KEY): bundle_id=`com.klayde.keyboardlayout.<short_lower>`,
+ * input_source_id=`<bundle_id>.<short_lower>`,
  * intended_language="en".
  * Форматные нарушения — E_MACOS_*; зависимые проверки пропускаются,
  * если базовые [main]-значения отсутствуют (об их отсутствии уже сообщено в V2).
@@ -389,26 +395,22 @@ function resolveMacos(
   const mainName = main["name"];
   const shortName = main["short_name"];
 
-  const bundleId = raw["bundle_id"] ?? MACOS_BUNDLE_ID_DEFAULT;
+  // Хардкод: только [a-z0-9-.] (short_name уже ограничен шаблоном,
+  // lower не добавляет новых символов кроме регистра).
+  const shortLower = (shortName ?? "").toLowerCase();
+  const bundleId = `${MACOS_BUNDLE_ID_PREFIX}.${shortLower}`;
   const bundleName = raw["bundle_name"] ?? mainName ?? "";
   const projectName = raw["project_name"] ?? mainName ?? "";
   const keyboardName =
     raw["keyboard_name"] ??
     (shortName !== undefined ? deriveMacosKeyboardName(shortName) : "");
-  const bundleVersion = raw["bundle_version"] ?? MACOS_VERSION_DEFAULT;
+  const bundleVersion = raw["bundle_version"] ?? MACOS_BUNDLE_VERSION_DEFAULT;
   const buildVersion = raw["build_version"] ?? MACOS_VERSION_DEFAULT;
   const sourceVersion = raw["source_version"] ?? MACOS_VERSION_DEFAULT;
   const intendedLanguage =
     raw["intended_language"] ?? MACOS_INTENDED_LANGUAGE_DEFAULT;
-  const inputSourceId =
-    raw["input_source_id"] ??
-    `${bundleId}.${keyboardName.toLowerCase()}`;
+  const inputSourceId = `${bundleId}.${shortLower}`;
 
-  if (bundleId.trim() === "") {
-    diagnostics.push(
-      errorDiag("E_MACOS_BUNDLE_ID", file, `[macos].bundle_id: ожидалась непустая строка`),
-    );
-  }
   // Производные bundle_name/project_name от битого [main].name не проверяем
   // (об ошибке первоисточника уже сообщено в V3; каскад ни к чему).
   const mainNameValid =
@@ -440,11 +442,6 @@ function resolveMacos(
       ),
     );
   }
-  if (inputSourceId.trim() === "") {
-    diagnostics.push(
-      errorDiag("E_MACOS_INPUT_SOURCE_ID", file, `[macos].input_source_id: ожидалась непустая строка`),
-    );
-  }
   if (!MACOS_INTENDED_LANGUAGE_RE.test(intendedLanguage.trim())) {
     diagnostics.push(
       errorDiag(
@@ -466,6 +463,17 @@ function resolveMacos(
           code,
           file,
           `[macos].${key} ${JSON.stringify(value)}: ожидались числа, разделённые точками (напр. "1.0", "2.3.4")`,
+        ),
+      );
+      continue;
+    }
+    // CFBundleVersion: минимум 2.0 (ниже — ошибка билда).
+    if (key === "bundle_version" && compareMacosVersions(value.trim(), MACOS_BUNDLE_VERSION_MIN) < 0) {
+      diagnostics.push(
+        errorDiag(
+          code,
+          file,
+          `[macos].${key} ${JSON.stringify(value)}: минимальная версия — ${MACOS_BUNDLE_VERSION_MIN}`,
         ),
       );
     }

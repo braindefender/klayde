@@ -28,18 +28,20 @@ ThinArr = "->"
 
 [macos]
 # все поля опциональны; ниже — дефолты
-bundle_id = "com.clayde.layout"
 bundle_name = "Universal Layout Ortho Merged"  # =[main].name
-bundle_version = "1.0"
+bundle_version = "2.0"  # минимум 2.0, ниже — E_MACOS_BUNDLE_VERSION
 keyboard_name = "ULOM"  # =буквы [main].short_name
 capslock_language_switch_capable = false
 icon_is_template = false
-input_source_id = "com.clayde.layout.ulom"  # =${bundle_id}.${keyboard_name.toLowerCase()}
 intended_language = "en"
 build_version = "1.0"
 project_name = "Universal Layout Ortho Merged"  # =[main].name
 source_version = "1.0"
 # icon_path = "psi.icns"  # без дефолта: путь к .icns от каталога схемы
+
+# CFBundleIdentifier и TISInputSourceID в TOML запрещены
+# (E_SCHEMA_UNKNOWN_KEY): хардкод `com.klayde.keyboardlayout.<short_lower>`
+# и `<bundle_id>.<short_lower>` от [main].short_name.
 
 [layout]
 base = '''
@@ -129,18 +131,19 @@ TOML-парсер к этому моменту уже мог исказить с
 
 | Ключ | Тип | Дефолт | Правила |
 | ---- | --- | ------ | ------- |
-| `bundle_id` | string | `com.clayde.layout` | непустая строка |
 | `bundle_name` | string | `[main].name` | непустая строка |
-| `bundle_version` | string | `1.0` | числа, разделённые точками (`1`, `1.0`, `2.3.4`) |
+| `bundle_version` | string | `2.0` | числа через точки (`2.0`, `2.3.4`); минимум `2.0`, ниже — `E_MACOS_BUNDLE_VERSION` |
 | `keyboard_name` | string | буквы `[main].short_name` (`EN-US`→`ENUS`) | только латинские буквы, 1+ символов; деривация из `short_name` без букв — `E_MACOS_KEYBOARD_NAME` |
 | `capslock_language_switch_capable` | boolean | `false` | только boolean (поле пока только в схеме) |
 | `icon_is_template` | boolean | `false` | только boolean; иконки `.icns` в bundle пока нет (следующая итерация) |
-| `input_source_id` | string | `${bundle_id}.${keyboard_name.toLowerCase()}` | непустая строка |
 | `intended_language` | string | `en` | ровно две латинские буквы (`en`, `ru`) |
-| `build_version` | string | `1.0` | как `bundle_version` |
+| `build_version` | string | `1.0` | как `bundle_version`, без минимума |
 | `project_name` | string | `[main].name` | непустая строка |
-| `source_version` | string | `1.0` | как `bundle_version` |
+| `source_version` | string | `1.0` | как `bundle_version`, без минимума |
 | `icon_path` | string | — (иконки нет) | путь к файлу `.icns` относительно каталога TOML-схемы; в bundle копируется байт-в-байт как `Resources/<keyboard_name>.icns` |
+
+`bundle_id` / `input_source_id` в схеме отсутствуют (будет `E_SCHEMA_UNKNOWN_KEY`):
+генерируются как `com.klayde.keyboardlayout.<short_lower>` и `<bundle_id>.<short_lower>`.
 
 ## 5. Секция `[ligatures]`
 

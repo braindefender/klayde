@@ -42,12 +42,14 @@
 
 Сверено с эталоном `data/reference/macos/Layouts.bundle/Contents` (Ukelele):
 
-- `Contents/Info.plist`: `CFBundleIdentifier` ← `bundle_id`,
-  `CFBundleName` ← `bundle_name`, `CFBundleVersion` ← `bundle_version`,
+- `Contents/Info.plist`: `CFBundleIdentifier` ← хардкод
+  `com.klayde.keyboardlayout.<short_lower>` (в TOML не задаётся),
+  `CFBundleName` ← `bundle_name`, `CFBundleVersion` ← `bundle_version`
+  (дефолт `2.0`, минимум `2.0` — ниже ошибка `E_MACOS_BUNDLE_VERSION`),
   `KLInfo_<keyboard_name>` ← единственная запись с
   `TICapsLockLanguageSwitchCapable` ← `capslock_language_switch_capable`,
   `TISIconIsTemplate` ← `icon_is_template`,
-  `TISInputSourceID` ← `input_source_id`,
+  `TISInputSourceID` ← хардкод `<bundle_id>.<short_lower>` (в TOML не задаётся),
   `TISIntendedLanguage` ← `intended_language`.
   В эталоне записей `KLInfo_*` две (`ENKbName` + `RUKbName`), т.к. эталонный
   bundle содержит сразу две раскладки; мы всегда пишем одну.
@@ -56,7 +58,7 @@
 - `Contents/Resources/<keyboard_name>.keylayout`: имя файла и
   `<keyboard name="">` ← `keyboard_name` (ср. эталон:
   `ENKbName.keylayout` ↔ `name="ENKbName"`); `id` — детерминированный
-  FNV-1a от `main.name` (как раньше).
+  FNV-1a от `main.name` в диапазоне −1…−32000 (маленький, как у Ukelele).
 - `Contents/Resources/<keyboard_name>.icns`: байт-копия `icon_path`
   (только если задан; отсутствие — не ошибка).
 - `Contents/Resources/en.lproj/InfoPlist.strings`:
@@ -76,11 +78,11 @@
 <?xml version="1.1" encoding="UTF-8"?>
 <!DOCTYPE keyboard SYSTEM "file://localhost/System/Library/DTDs/KeyboardLayout.dtd">
 <!-- сгенерировано klayde -->
-<keyboard group="126" id="-123456" name="Universal Layout Ortho Merged" maxout="2">
+<keyboard group="126" id="-27375" name="Universal Layout Ortho Merged" maxout="2">
     <layouts>...</layouts>
-    <modifierMap id="mods" defaultIndex="0">...</modifierMap>
-    <keyMapSet id="ulom">...</keyMapSet>
-    <keyMapSet id="zzstub">...</keyMapSet>
+    <modifierMap id="f4" defaultIndex="0">...</modifierMap>
+    <keyMapSet id="16c">...</keyMapSet>
+    <keyMapSet id="994">...</keyMapSet>
 </keyboard>
 ```
 
@@ -89,10 +91,12 @@
 1. `group="126"` — хардкод для кастомных раскладок (подтверждено обоими
    файлами и шпаргалкой). `name` — `[macos].keyboard_name`
    (см. раздел 1.1; раньше был `main.name`).
-2. `id` — у Ukelele случайный отрицательный int32 (у upstream `-24174`
-   и `-15810`), обязан различаться у разных раскладок. Наш генератор:
-   детерминированный FNV-1a от `main.name`, отображённый на отрицательный
-   int32 (стабилен между прогонами; задокументировать формулу в коде).
+2. `id` — у Ukelele маленький отрицательный int (у upstream `-24174`
+   и `-15810`, у эталона `-17950`), обязан различаться у разных раскладок.
+   Наш генератор: детерминированный FNV-1a от `main.name`, отображённый
+   на диапазон −1…−32000 (стабилен между прогонами; формула в коде).
+   Большой отрицательный int32 (до −2e9) не используется — Ukelele/macOS
+   ждут маленькое число.
 3. `maxout` — максимум UTF-16 единиц, выдаваемых одним нажатием.
    Правило: `max(1, максимальная длина used-лигатур в UTF-16 единицах)`.
    В upstream `maxout="2"` при 2-символьных лигатурах — сходится.
@@ -177,9 +181,9 @@ r1→r5, c1→c10 (как в upstream), тест «50 записей» по об
   тестом).
 - `layouts`-блок (8 диапазонов keyboard-type → mapSet/modifiers)
   и stub-`keyMapSet` (один `code 512`) — дословные константы из upstream
-  (идентичны в обоих файлах). Наш `keyMapSet id` = `short_name`
-  в нижнем регистре (`ulom`); `modifierMap id` = `mods`
-  (осмысленные имена вместо `16c`/`f4`).
+  (структура идентична в обоих файлах; второй сет — `994` в Universal-семействе,
+  `984` в эталоне). Наши ids — дословно upstream: main `16c`, stub `994`,
+  modifiers `f4`; первый диапазон `0–17` → `16c`, остальные 7 → `994`.
 - F-клавиши и прочие коды вне наших 50 (в upstream 16c их 103):
   статический passthrough-блок, извлечённый из upstream
   (96 строк карт 0/1 идентичны между файлами) — нулевой риск fallback,
@@ -212,9 +216,12 @@ strings», upstream это использует):
 
 ## 7. Кодирование `output`
 
-- XML-escape: `&`→`&amp;`, `<`→`&lt;`, `>`→`&gt;`, `"`→`&quot;`
-  (обязательно: `"` встречается в сетках!), `'` — как есть
-  (атрибуты в двойных кавычках), управляющие символы — `&#xHHHH;`;
+- XML-escape — только числовыми HEX-сущностями, как Ukelele:
+  `&`→`&#x0026;`, `<`→`&#x003C;`, `>`→`&#x003E;`, `"`→`&#x0022;`,
+  `'`→`&#x0027;` (обязательно: `"` и `'` встречаются в сетках;
+  именованные `&amp;/&lt;/&gt;/&quot;` запрещены — macOS их не раскрывает
+  в вывод, символы не вводятся), управляющие символы — `&#xHHHH;`
+  (верхний регистр, 4 цифры);
 - весь остальной Unicode — сырым UTF-8 (как upstream: сырая кириллица
   рядом с `&#x0027;` — практика смешанная, наше правило детерминировано);
 - `@Space` → ` ` (U+0020), `@Nbsp` → ` ` (U+00A0, сырым),
@@ -248,11 +255,13 @@ class MacosGenerator implements OsGenerator {
 Автоматизировано (тесты генератора, без Mac):
 
 - XML-инварианты сгенерированных файлов (без `DOMParser` — его нет
-  в Bun): баланс тегов, отсутствие голых `&`/`<`/`"` внутри значений
-  `output` (проверка по `&amp;|&lt;|&gt;|&quot;|&#x…;`), round-trip
-  `encodeOutput`→unescape для tricky-ячеек (`"`, `&`, `<`, NBSP)
-  + точечные assertions значений (`output="=>"` на коде 40
-  в картах 4/5 и т.п.);
+  в Bun): баланс тегов, отсутствие голых `&`/`<` и именованных сущностей
+  внутри значений `output` (разрешены только `&#x…;`), отсутствие сырого `'`
+  (экранируется в `&#x0027;`), round-trip
+  `encodeOutput`→unescape для tricky-ячеек (`"`, `'`, `&`, `<`, NBSP)
+  + точечные assertions значений (`output="=&#x003E;"` на коде 40
+  в картах 4/5 и т.п.); плюс структура `layouts` (`0–17`→`16c`,
+  остальные→`994`), `keyMapSet id="16c"/"994"`, `modifierMap id="f4"`;
 - golden-снапшоты: наши образцы в `tests/golden/*.keylayout`
   (пишутся нами, ревьюятся построчно; `name` = `[macos].keyboard_name`,
   файлы upstream — только референс, не golden, см. раздел 11);

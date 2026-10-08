@@ -5,15 +5,15 @@
  * (`data/reference/macos/Layouts.bundle/Contents`, Ukelele):
  *
  * - `Contents/Info.plist`:
- *   CFBundleIdentifier ← bundle_id,
+ *   CFBundleIdentifier ← хардкод `com.klayde.keyboardlayout.<short_lower>`,
  *   CFBundleName ← bundle_name,
- *   CFBundleVersion ← bundle_version,
+ *   CFBundleVersion ← bundle_version (дефолт 2.0, минимум 2.0),
  *   KLInfo_<keyboard_name> ← единственная запись (1 TOML = 1 bundle = 1
  *   раскладка; в эталоне их две — ENKbName + RUKbName — т.к. эталонный
  *   bundle содержит сразу две раскладки):
  *     TICapsLockLanguageSwitchCapable ← capslock_language_switch_capable,
  *     TISIconIsTemplate ← icon_is_template,
- *     TISInputSourceID ← input_source_id,
+ *     TISInputSourceID ← хардкод `<bundle_id>.<short_lower>`,
  *     TISIntendedLanguage ← intended_language;
  * - `Contents/version.plist`:
  *   BuildVersion ← build_version,

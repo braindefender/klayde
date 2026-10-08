@@ -34,17 +34,19 @@
 быть строкой, но пришло числом/массивом — `E_SCHEMA_TYPE`.
 `[main].caps_is_shift` — необязательный boolean, по умолчанию `true`:
 не-boolean значение — `E_SCHEMA_TYPE`. `[macos]`:
-9 строковых полей — строки, 2 boolean-поля
+7 строковых полей — строки, 2 boolean-поля
 (`capslock_language_switch_capable`, `icon_is_template`) — boolean;
 нарушение типа — `E_SCHEMA_TYPE`, битое значение отбрасывается и дальше
-действует дефолт.
+действует дефолт. `bundle_id`/`input_source_id` в схеме отсутствуют
+(хардкод от `[main].short_name`): их наличие — `E_SCHEMA_UNKNOWN_KEY`.
 
 **V3. Скалярные поля `[main]`/`[msklc]`/`[macos]`.**
 Проверки из `docs/02-toml-schema.md`: непустота, длины, шаблоны
 (`short_name`, `msklc.name`). Каждое нарушение — свой код
 (`E_MAIN_NAME`, `E_MAIN_SHORT_NAME`, `E_MSKLC_NAME`, ...), сообщение содержит
 фактическое значение. Поля `[macos]` — свои коды `E_MACOS_*`
-(версии — числа через точки, `intended_language` — две латинские буквы,
+(версии — числа через точки, `bundle_version` минимум `2.0`,
+`intended_language` — две латинские буквы,
 `keyboard_name` — только буквы, `icon_path` — непустой путь к `.icns`);
 производные дефолты от битого `[main]`
 не проверяются повторно (каскада ошибок нет).

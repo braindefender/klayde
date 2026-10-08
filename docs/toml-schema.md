@@ -25,13 +25,11 @@ Default: true. Определяет поведение раскладки при
 
 ```toml
 [macos]
-bundle_id = "com.clayde.layout"          # CFBundleIdentifier
 bundle_name = "My Layout"                # CFBundleName (дефолт =[main].name)
-bundle_version = "1.0"                   # CFBundleVersion (semver)
+bundle_version = "2.0"                   # CFBundleVersion (дефолт 2.0, минимум 2.0)
 keyboard_name = "MyKB"                   # имя .keylayout, <keyboard name>, KLInfo_<name> (дефолт =буквы short_name)
 capslock_language_switch_capable = false # TICapsLockLanguageSwitchCapable
 icon_is_template = false                 # TISIconIsTemplate (иконки .icns пока нет)
-input_source_id = "com.clayde.layout.mykb" # TISInputSourceID (дефолт =${bundle_id}.${keyboard_name.toLowerCase()})
 intended_language = "en"                 # TISIntendedLanguage (две латинские буквы)
 build_version = "1.0"                    # BuildVersion (semver)
 project_name = "My Layout"               # ProjectName (дефолт =[main].name)

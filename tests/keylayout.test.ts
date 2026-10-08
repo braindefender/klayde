@@ -73,11 +73,13 @@ describe("encodeOutput", () => {
 });
 
 describe("escapeXmlAttr", () => {
-  test("экранирует спецсимволы, остальное — сырым UTF-8", () => {
-    expect(escapeXmlAttr('"a&b<c>d\'e')).toBe("&quot;a&amp;b&lt;c&gt;d'e");
+  test("экранирует спецсимволы HEX-сущностями (как Ukelele), остальное — сырым UTF-8", () => {
+    expect(escapeXmlAttr('"a&b<c>d\'e')).toBe("&#x0022;a&#x0026;b&#x003C;c&#x003E;d&#x0027;e");
     expect(escapeXmlAttr("бе")).toBe("бе");
     expect(escapeXmlAttr(String.fromCodePoint(0xa0))).toBe(String.fromCodePoint(0xa0));
     expect(escapeXmlAttr("ab")).toBe("a&#x0007;b");
+    // Лигатура с > : = сырым, > — HEX.
+    expect(escapeXmlAttr("=>")).toBe("=&#x003E;");
   });
 });
 
@@ -116,8 +118,8 @@ describe("buildKeyMaps: карты 0–5", () => {
       if (!line) throw new Error(`нет кода ${code}`);
       return parseKey(line)[1];
     };
-    expect(byCode(maps[4] as string[], 40)).toBe("=&gt;");
-    expect(byCode(maps[5] as string[], 40)).toBe("-&gt;");
+    expect(byCode(maps[4] as string[], 40)).toBe("=&#x003E;");
+    expect(byCode(maps[5] as string[], 40)).toBe("-&#x003E;");
   });
 
   test("@None → output=\"\", код 10 и 65 из сетки", async () => {
@@ -154,22 +156,38 @@ describe("buildKeyMaps: карты 0–5", () => {
 });
 
 describe("keyboard-тег: id, maxout, mapSet", () => {
-  test("id детерминирован, отрицательный int32, ненулевой, разный", () => {
+  test("id детерминирован, маленький отрицательный (как Ukelele), ненулевой, разный", () => {
     const a = computeKeyboardId("Universal Layout Ortho Merged");
     expect(computeKeyboardId("Universal Layout Ortho Merged")).toBe(a);
     expect(a < 0 && a !== 0 && Number.isInteger(a)).toBe(true);
+    expect(Math.abs(a)).toBeLessThanOrEqual(32000);
     expect(computeKeyboardId("Universal Layout Ortho English")).not.toBe(a);
   });
   test("maxout: merged — 2, lig-multi — 4", async () => {
     expect(computeMaxOut(await loadSpec("tests/fixtures/golden-merged.toml"))).toBe(2);
     expect(computeMaxOut(await loadSpec("tests/fixtures/lig-multi.toml"))).toBe(4);
   });
-  test("mapSet id — short_name в нижнем регистре", async () => {
-    expect(mapSetId(await loadSpec("tests/fixtures/golden-merged.toml"))).toBe("ulom");
+  test("mapSet/modifier/stub ids — как upstream (16c/994/f4)", async () => {
+    expect(mapSetId(await loadSpec("tests/fixtures/golden-merged.toml"))).toBe("16c");
+    const { stubSetId } = await import("../process/generators/macos/keylayoutWriter.ts");
+    expect(stubSetId(await loadSpec("tests/fixtures/golden-merged.toml"))).toBe("994");
+    const { MAC_MODIFIERS_ID } = await import("../process/generators/macos/keylayoutHeader.ts");
+    expect(MAC_MODIFIERS_ID).toBe("f4");
   });
-  test("buildKeyElement экранирует кавычки", () => {
+  test("layouts: первый диапазон → main, остальные → stub (как upstream)", async () => {
+    const spec = await loadSpec("tests/fixtures/golden-merged.toml");
+    const text = buildKeylayoutText(spec).join("\n");
+    expect(text).toContain('<layout first="0" last="17" mapSet="16c" modifiers="f4"/>');
+    expect(text).toContain('<layout first="18" last="18" mapSet="994" modifiers="f4"/>');
+    expect(text).not.toContain('mapSet="ulom"');
+    expect(text).not.toContain('zzstub');
+  });
+  test("buildKeyElement экранирует кавычки HEX-сущностью", () => {
     expect(buildKeyElement(50, { kind: "char", codePoint: 0x22 })).toBe(
-      '<key code="50" output="&quot;"/>',
+      '<key code="50" output="&#x0022;"/>',
+    );
+    expect(buildKeyElement(50, { kind: "char", codePoint: 0x27 })).toBe(
+      '<key code="50" output="&#x0027;"/>',
     );
   });
 });
@@ -204,13 +222,24 @@ describe("XML-инварианты вывода", () => {
         expect([tag, open, close]).toEqual([tag, open, open]);
         expect(close).toBe(open);
       }
-      // Внутри output="..." — только сущности, не голые & < ".
+      // Внутри output="..." — только HEX-сущности, не голые & < и не именованные.
+      // Именованные &amp;/&lt;/&gt;/&quot; запрещены (Ukelele пишет &#xHHHH;).
       // (бэкслэш НЕ escape-символ XML: output="\" валиден как есть).
       for (const m of text.matchAll(/output="([^"]*)"/g)) {
         const v = m[1] as string;
-        expect(v.replace(/&(amp|lt|gt|quot|#x[0-9A-Fa-f]+);/g, "")).not.toContain("&");
+        expect(v).not.toContain("&amp;");
+        expect(v).not.toContain("&lt;");
+        expect(v).not.toContain("&gt;");
+        expect(v).not.toContain("&quot;");
+        expect(v.replace(/&#x[0-9A-Fa-f]+;/g, "")).not.toContain("&");
         expect(v).not.toContain("<");
+        expect(v).not.toContain("'");
       }
+      // layouts: первый диапазон → 16c, остальные → 994 (как upstream).
+      expect(text).toContain('<layout first="0" last="17" mapSet="16c" modifiers="f4"/>');
+      expect(text).toContain('<keyMapSet id="16c">');
+      expect(text).toContain('<keyMapSet id="994">');
+      expect(text).toContain('<modifierMap id="f4"');
     }
   });
 

@@ -50,20 +50,27 @@ export function encodeOutput(value: CellValue): string {
 
 /**
  * Экранирование для XML-атрибута в двойных кавычках.
- * `"` встречается в сетках (base_shift r5c2), `&` — тоже (r4c8 base),
- * `<`/`>` — в altgr. Остальной Unicode — сырым UTF-8 (как upstream).
+ * Ukelele пишет спецсимволы числовыми HEX-сущностями (как юникод),
+ * а не именованными: `&` → `&#x0026;`, `<` → `&#x003C;`,
+ * `>` → `&#x003E;`, `"` → `&#x0022;`, `'` → `&#x0027;`
+ * (сверено с `Universal Layout Ortho.keylayout`: именованные
+ * `&amp;/&lt;/&gt;/&quot;` macOS-парсером не раскрываются в вывод,
+ * символы не вводятся). Управляющие символы — тоже `&#xHHHH;`
+ * (верхний регистр, 4 цифры). Остальной Unicode — сырым UTF-8.
  */
 export function escapeXmlAttr(raw: string): string {
-  return raw.replace(/[\u0026\u003C\u003E\u0022\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, (ch) => {
+  return raw.replace(/[\u0022\u0026\u0027\u003C\u003E\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, (ch) => {
     switch (ch) {
       case "&":
-        return "&amp;";
+        return "&#x0026;";
       case "<":
-        return "&lt;";
+        return "&#x003C;";
       case ">":
-        return "&gt;";
+        return "&#x003E;";
       case '"':
-        return "&quot;";
+        return "&#x0022;";
+      case "'":
+        return "&#x0027;";
       default:
         return `&#x${(ch.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, "0")};`;
     }

@@ -43,16 +43,16 @@ async function loadSpec(file: string): Promise<ValidatedSpec> {
 }
 
 describe("[macos]: дефолты без секции", () => {
-  test("valid-mini: все поля по умолчанию", async () => {
+  test("valid-mini: все поля по умолчанию (id хардкод, версия 2.0)", async () => {
     const spec = await loadSpec("tests/fixtures/valid-mini.toml");
     expect(spec.macos).toEqual({
-      bundleId: "com.clayde.layout",
+      bundleId: "com.klayde.keyboardlayout.fixv",
       bundleName: "Fixture Valid Mini",
-      bundleVersion: "1.0",
+      bundleVersion: "2.0",
       keyboardName: "FIXV",
       capslockLanguageSwitchCapable: false,
       iconIsTemplate: false,
-      inputSourceId: "com.clayde.layout.fixv",
+      inputSourceId: "com.klayde.keyboardlayout.fixv.fixv",
       intendedLanguage: "en",
       buildVersion: "1.0",
       projectName: "Fixture Valid Mini",
@@ -68,7 +68,8 @@ describe("[macos]: дефолты без секции", () => {
     const r = validateText("en-us-derive.toml", text);
     expect(errorCodes(r)).toEqual([]);
     expect(r.spec?.macos.keyboardName).toBe("ENUS");
-    expect(r.spec?.macos.inputSourceId).toBe("com.clayde.layout.enus");
+    expect(r.spec?.macos.bundleId).toBe("com.klayde.keyboardlayout.en-us");
+    expect(r.spec?.macos.inputSourceId).toBe("com.klayde.keyboardlayout.en-us.en-us");
   });
 
   test("short_name без букв → E_MACOS_KEYBOARD_NAME", async () => {
@@ -81,19 +82,17 @@ describe("[macos]: дефолты без секции", () => {
 });
 
 describe("[macos]: явные значения", () => {
-  test("все поля из TOML попадают в spec как есть", async () => {
+  test("все поля из TOML попадают в spec, id — хардкод от short_name", async () => {
     const base = await miniText();
     const r = validateText(
       "explicit.toml",
       withMacos(
         base,
-        `bundle_id = "com.example.test"
-bundle_name = "Test Bundle"
+        `bundle_name = "Test Bundle"
 bundle_version = "2.3.4"
 keyboard_name = "TestKB"
 capslock_language_switch_capable = true
 icon_is_template = true
-input_source_id = "com.example.test.custom"
 intended_language = "ru"
 build_version = "3"
 project_name = "Test Project"
@@ -102,13 +101,13 @@ source_version = "4.5.6"`,
     );
     expect(errorCodes(r)).toEqual([]);
     expect(r.spec?.macos).toEqual({
-      bundleId: "com.example.test",
+      bundleId: "com.klayde.keyboardlayout.fixv",
       bundleName: "Test Bundle",
       bundleVersion: "2.3.4",
       keyboardName: "TestKB",
       capslockLanguageSwitchCapable: true,
       iconIsTemplate: true,
-      inputSourceId: "com.example.test.custom",
+      inputSourceId: "com.klayde.keyboardlayout.fixv.fixv",
       intendedLanguage: "ru",
       buildVersion: "3",
       projectName: "Test Project",
@@ -116,11 +115,22 @@ source_version = "4.5.6"`,
       iconPath: undefined,
     });
   });
+
+  test("bundle_id/input_source_id в TOML запрещены → E_SCHEMA_UNKNOWN_KEY", async () => {
+    const base = await miniText();
+    for (const body of ['bundle_id = "com.example.test"', 'input_source_id = "com.example.test.custom"']) {
+      const r = validateText("banned.toml", withMacos(base, body));
+      expect(errorCodes(r)).toEqual(["E_SCHEMA_UNKNOWN_KEY"]);
+      expect(r.spec).toBeNull();
+    }
+  });
 });
 
 describe("[macos]: ошибки формата", () => {
   const cases: [string, string, ValidationCode][] = [
     ["bundle_version", 'bundle_version = "1.0-beta"', "E_MACOS_BUNDLE_VERSION"],
+    ["bundle_version ниже минимума", 'bundle_version = "1.0"', "E_MACOS_BUNDLE_VERSION"],
+    ["bundle_version 1.99 ниже минимума", 'bundle_version = "1.99"', "E_MACOS_BUNDLE_VERSION"],
     ["build_version", 'build_version = "x"', "E_MACOS_BUILD_VERSION"],
     ["source_version", 'source_version = "1..0"', "E_MACOS_SOURCE_VERSION"],
     ["intended_language 3 буквы", 'intended_language = "eng"', "E_MACOS_INTENDED_LANGUAGE"],
@@ -128,8 +138,6 @@ describe("[macos]: ошибки формата", () => {
     ["keyboard_name с дефисом", 'keyboard_name = "EN-US"', "E_MACOS_KEYBOARD_NAME"],
     ["bundle_name пустое", 'bundle_name = "  "', "E_MACOS_BUNDLE_NAME"],
     ["project_name пустое", 'project_name = ""', "E_MACOS_PROJECT_NAME"],
-    ["bundle_id пустое", 'bundle_id = ""', "E_MACOS_BUNDLE_ID"],
-    ["input_source_id пустое", 'input_source_id = ""', "E_MACOS_INPUT_SOURCE_ID"],
   ];
   for (const [label, body, want] of cases) {
     test(`${label} → ${want}`, async () => {
@@ -139,9 +147,16 @@ describe("[macos]: ошибки формата", () => {
     });
   }
 
+  test("bundle_version на границе минимума: 2.0 ок, 2.0.1 ок", async () => {
+    for (const v of ['"2.0"', '"2.0.1"', '"10.0"']) {
+      const r = validateText("ok-ver.toml", withMacos(await miniText(), `bundle_version = ${v}`));
+      expect(errorCodes(r)).toEqual([]);
+    }
+  });
+
   test("не-строка и не-boolean → E_SCHEMA_TYPE", async () => {
     const base = await miniText();
-    for (const body of ['bundle_id = 123', 'capslock_language_switch_capable = "yes"', "icon_is_template = 1"]) {
+    for (const body of ['bundle_name = 123', 'capslock_language_switch_capable = "yes"', "icon_is_template = 1"]) {
       const r = validateText("bad-type.toml", withMacos(base, body));
       expect(errorCodes(r)).toEqual(["E_SCHEMA_TYPE"]);
     }
@@ -226,13 +241,14 @@ describe("bundle: структура и маппинг", () => {
 
     const info = await fs.readFile(p.infoPlist, "utf8");
     expect(info).toContain("<key>CFBundleIdentifier</key>");
-    expect(info).toContain("<string>com.clayde.layout</string>");
+    expect(info).toContain("<string>com.klayde.keyboardlayout.fixv</string>");
     expect(info).toContain("<key>CFBundleName</key>");
     expect(info).toContain("<string>Fixture Valid Mini</string>");
     expect(info).toContain("<key>CFBundleVersion</key>");
+    expect(info).toContain("<string>2.0</string>");
     expect(info.match(/<key>KLInfo_/g)?.length ?? 0).toBe(1);
     expect(info).toContain("<key>KLInfo_FIXV</key>");
-    expect(info).toContain("<string>com.clayde.layout.fixv</string>");
+    expect(info).toContain("<string>com.klayde.keyboardlayout.fixv.fixv</string>");
     expect(info).toContain("<string>en</string>");
 
     const version = await fs.readFile(p.versionPlist, "utf8");
@@ -255,16 +271,14 @@ describe("bundle: структура и маппинг", () => {
     expect(leftovers).toEqual([]);
   });
 
-  test("явный [macos] меняет plist и имена файлов", async () => {
+  test("явный [macos] меняет plist и имена файлов (id всегда хардкод)", async () => {
     const base = await miniText();
     const r = validateText(
       "explicit.toml",
       withMacos(
         base,
-        `bundle_id = "com.example.test"
-bundle_name = "Custom Bundle"
+        `bundle_name = "Custom Bundle"
 keyboard_name = "TestKB"
-input_source_id = "com.example.test.custom"
 intended_language = "ru"`,
       ),
     );
@@ -278,7 +292,8 @@ intended_language = "ru"`,
     expect(p.keylayoutFile.endsWith("TestKB.keylayout")).toBe(true);
     const info = await fs.readFile(p.infoPlist, "utf8");
     expect(info).toContain("<key>KLInfo_TestKB</key>");
-    expect(info).toContain("<string>com.example.test.custom</string>");
+    expect(info).toContain("<string>com.klayde.keyboardlayout.fixv</string>");
+    expect(info).toContain("<string>com.klayde.keyboardlayout.fixv.fixv</string>");
     expect(info).toContain("<string>ru</string>");
   });
 
